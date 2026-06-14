@@ -58,18 +58,19 @@ app.get('/api/category', (req, res) => {
     }
 });
 
-// 2. Bóc link thô .mp4 truyền thẳng vào ExoPlayer để phát
+// Sửa lại đoạn endpoint stream trả về dạng JSON thay vì Redirect
 app.get('/api/stream', async (req, res) => {
     const tiktokUrl = req.query.url;
-    if (!tiktokUrl) return res.status(400).send("Thiếu url!");
+    if (!tiktokUrl) return res.status(400).json({ error: "Thiếu url!" });
     try {
         const apiResponse = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(tiktokUrl)}`);
         if (apiResponse.data && apiResponse.data.data) {
-            return res.redirect(apiResponse.data.data.play); // Redirect 302 cho ExoPlayer húp luôn luồng video thô
+            // Trả về object JSON chứa link để App TV tự bóc ra đem đi phát
+            return res.json({ url: apiResponse.data.data.play }); 
         }
-        return res.status(404).send("Không bóc được luồng");
+        return res.status(404).json({ error: "Không bóc được luồng" });
     } catch (error) {
-        return res.status(500).send("Lỗi luồng: " + error.message);
+        return res.status(500).json({ error: error.message });
     }
 });
 
