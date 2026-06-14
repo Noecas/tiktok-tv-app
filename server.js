@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
     res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào rồi ông giáo ơi!");
 });
 
-// Hàm tự động cào dữ liệu nâng cấp
+// Hàm tự động cào dữ liệu nâng cấp (ĐÃ FIX: Thêm phân trang ngẫu nhiên tránh trùng lặp)
 async function crawlAndSaveToJSON() {
     console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu...");
     let currentData = {};
@@ -29,7 +29,14 @@ async function crawlAndSaveToJSON() {
     for (const [key, keywords] of Object.entries(keywordsDatabase)) {
         const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
         try {
-            const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(randomKeyword)}&count=30&cursor=0`;
+            // 🔥 CẢI TIẾN CHÍ MẠNG: Tự động nhảy trang ngẫu nhiên (Ví dụ: Trang 0, 10, 20, 30, 40)
+            const randomCursor = Math.floor(Math.random() * 5) * 10; 
+            
+            console.log(`⏳ Đang cào cho mục [${key}] | Từ khóa: "${randomKeyword}" | Trang số (Cursor): ${randomCursor}`);
+            
+            // Đã thay thế cursor=0 cố định thành biến số trang ngẫu nhiên ${randomCursor}
+            const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(randomKeyword)}&count=30&cursor=${randomCursor}`;
+            
             const response = await axios.get(targetUrl, { 
                 timeout: 8000,
                 headers: {
@@ -49,7 +56,7 @@ async function crawlAndSaveToJSON() {
                 }));
 
                 const oldList = currentData[key] || [];
-                // Lọc bỏ các video cũ bị hết hạn link sau nhiều ngày
+                // Giữ lại tối đa 10 video cũ gần nhất để nhường chỗ cho rổ video mới
                 const cleanOldList = oldList.slice(-10); 
                 const mergedList = [...cleanOldList, ...fetchedVideos];
                 
@@ -57,18 +64,20 @@ async function crawlAndSaveToJSON() {
                 mergedList.forEach(video => { if (video.video_id) uniqueMap.set(video.video_id, video); });
                 
                 currentData[key] = Array.from(uniqueMap.values());
+                console.log(`✅ Mục [${key}] tích lũy thành công! Kho đang có: ${currentData[key].length} video.`);
             }
         } catch (err) {
             console.log(`⚠️ Không cào được mục [${key}] do bên thứ ba chặn. Sẽ dùng kho dự phòng.`);
         }
     }
     fs.writeFileSync(FILE_PATH, JSON.stringify(currentData, null, 2));
+    console.log("💾 [THÀNH CÔNG] Đã đồng bộ kho dữ liệu mới vào file JSON!");
 }
 
 // Chạy cào tự động lúc khởi động
 crawlAndSaveToJSON();
 
-// 🔥 API CHÍNH: ĐÃ SỬA LỖI ĐẢM BẢO LUÔN TRẢ VỀ DANH SÁCH LỚN, KHÔNG BAO GIỜ BỊ 1 VIDEO
+// 🔥 API CHÍNH: Trả dữ liệu mượt mà về cho Android Studio
 app.get('/api/category', (req, res) => {
     const categoryKey = req.query.name || "hai_huoc";
     const count = parseInt(req.query.count) || 35; 
@@ -82,7 +91,7 @@ app.get('/api/category', (req, res) => {
         const liveVideos = currentData[categoryKey] || [];
         const fallbackVideos = fallbackDatabase[categoryKey] || [];
 
-        // 🔥 Gộp chung video cào được VÀ video cứu nguy để mảng dữ liệu luôn đầy đặn phong phú
+        // Gộp chung video cào được VÀ video cứu nguy để mảng dữ liệu luôn đầy đặn phong phú
         const mergedResult = [...liveVideos, ...fallbackVideos];
 
         // Xóa trùng ID nếu có
@@ -103,9 +112,10 @@ app.get('/api/category', (req, res) => {
     }
 });
 
+// Nút kích hoạt cào thêm bằng tay
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
-    res.send("Đã cập nhật quét kho video mới!");
+    res.send("Đã chạy lệnh cào nâng cấp xới tung các trang TikTok rồi nhé ông giáo!");
 });
 
 app.listen(PORT, () => console.log(`🚀 Server chạy mượt mà tại cổng ${PORT}`));
