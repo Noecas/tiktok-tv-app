@@ -5,45 +5,85 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Đường dẫn tới file JSON duy nhất để lưu dữ liệu
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
-// Khởi tạo file json trống với cấu trúc các mục nếu chưa tồn tại
+// Khởi tạo cấu trúc các mục mới trong file JSON (Thêm van_minh và threads_topic)
 if (!fs.existsSync(FILE_PATH)) {
-    const initialData = { hai_huoc: [], tam_trang: [], game: [], phim_anh: [], kienthuc: [] };
+    const initialData = { 
+        hai_huoc: [], 
+        tam_trang: [], 
+        game: [], 
+        phim_anh: [], 
+        kienthuc: [],
+        van_minh: [],
+        threads_topic: []
+    };
     fs.writeFileSync(FILE_PATH, JSON.stringify(initialData, null, 2));
 }
 
-// Cấu hình từ khóa tương ứng cho các mục
-const categoryMap = {
-    "hai_huoc": "hài hước tik tok việt nam meme vui nhộn",
-    "tam_trang": "nhạc buồn tâm trạng chill lofi buồn",
-    "game": "highlight game pubg freefire liên quân",
-    "phim_anh": "review phim hay tóm tắt phim truyền hình",
-    "kienthuc": "kiến thức thú vị khoa học đời sống"
+// KHO TỪ KHÓA SIÊU CẤP MỞ RỘNG (VĂN MINH, HÀI, GAME, THREADS...)
+const keywordsDatabase = {
+    "hai_huoc": [
+        "hài hước tik tok việt nam", "meme vui nhộn giải trí", 
+        "tấu hài cực mạnh tiktok", "clip vui cười rớt hàm", 
+        "giải trí hài hước triệu view", "phim ngắn hài hước bựa",
+        "vô tri hài hước", "tổng hợp clip vui nhộn"
+    ],
+    "tam_trang": [
+        "nhạc buồn tâm trạng chill", "lofi tâm trạng buồn", 
+        "suy nghĩ về cuộc sống buồn", "stt tâm trạng cô đơn", 
+        "nhạc lofi chill đêm muộn", "soundtrack buồn tâm trạng"
+    ],
+    "game": [
+        "highlight liên quân mobile", "pubg mobile việt nam hài", 
+        "free fire highlight mượt", "liên minh huyền thoại tấu hài",
+        "game hay tik tok", "funny gaming moments vn", "bình luận game tấu hài"
+    ],
+    "phim_anh": [
+        "review phim hay ngột ngạt", "tóm tắt phim truyền hình", 
+        "cắt cảnh phim hay nhất", "review phim kịch tính"
+    ],
+    "kienthuc": [
+        "kiến thức thú vị đời sống", "khoa học đời sống bí ẩn", 
+        "sự thật lạ lùng bạn chưa biết", "khám phá thế giới quanh ta",
+        "lịch sử thế giới thú vị"
+    ],
+    // MỤC VĂN MINH (Nội dung tích cực, chữa lành, bài học sâu sắc)
+    "van_minh": [
+        "lối sống văn minh tích cực", "bài học cuộc sống ý nghĩa", 
+        "phát triển bản thân mỗi ngày", "chữa lành tâm hồn nhẹ nhàng", 
+        "truyền cảm hứng tích cực", "ứng xử văn minh lịch sự",
+        "động lực cuộc sống mỗi ngày"
+    ],
+    // MỤC THREADS TOPIC (Drama, tâm sự, chuyện hay từ Threads VN)
+    "threads_topic": [
+        "story threads việt nam", "tóm tắt drama threads", 
+        "tâm sự threads hài hước", "threads hot topic vn", 
+        "đọc tin threads chill", "threads confession việt nam",
+        "chuyện ly kỳ trên threads"
+    ]
 };
 
-// ==========================================
-// HÀM CÀO DỮ LIỆU VÀ GHI VÀO FILE .JSON (TỰ ĐỘNG LỌC TRÙNG)
-// ==========================================
+// Hàm tự động cào tích lũy dữ liệu sạch vào file JSON
 async function crawlAndSaveToJSON() {
-    console.log("🔄 [HỆ THỐNG] Bắt đầu cào dữ liệu tích lũy vào file videos.json...");
+    console.log("🔄 [HỆ THỐNG] Bắt đầu cào dữ liệu tích lũy...");
     
-    // Đọc dữ liệu hiện tại trong file ra trước
     let currentData = {};
     try {
         currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
     } catch (e) {
-        currentData = { hai_huoc: [], tam_trang: [], game: [], phim_anh: [], kienthuc: [] };
+        currentData = { hai_huoc: [], tam_trang: [], game: [], phim_anh: [], kienthuc: [], van_minh: [], threads_topic: [] };
     }
 
-    // Duyệt qua từng mục để cào
-    for (const [key, keyword] of Object.entries(categoryMap)) {
+    for (const [key, keywords] of Object.entries(keywordsDatabase)) {
+        // Mỗi lần cào, server lấy ngẫu nhiên 1 từ khóa trong danh sách của mục đó để nội dung luôn đổi mới
+        const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
+        
         try {
-            console.log(`⏳ Đang cào dữ liệu cho mục: ${key}`);
+            console.log(`⏳ Đang cào cho mục [${key}] bằng từ khóa: "${randomKeyword}"`);
             const response = await axios.post('https://www.tikwm.com/api/feed/search', {
-                keywords: keyword,
-                count: 40, // Mỗi danh mục cào hẳn 40 video cho nhiều
+                keywords: randomKeyword,
+                count: 35, // Lấy 35 video mỗi mục
                 cursor: 0
             });
 
@@ -58,54 +98,45 @@ async function crawlAndSaveToJSON() {
                     originUrl: `https://www.tiktok.com/@${v.author.unique_id}/video/${v.video_id}`
                 }));
 
-                // Gộp danh sách cũ lưu trong file và danh sách mới cào về
                 const oldList = currentData[key] || [];
                 const mergedList = [...oldList, ...fetchedVideos];
 
-                // TIẾN HÀNH LỌC TRÙNG VĨNH VIỄN BẰNG VIDEO ID
+                // LỌC TRÙNG TUYỆT ĐỐI BẰNG VIDEO ID
                 const uniqueMap = new Map();
                 mergedList.forEach(video => uniqueMap.set(video.videoId, video));
                 
-                // Cập nhật lại mảng sạch vào danh mục
                 currentData[key] = Array.from(uniqueMap.values());
-                console.log(`✅ Mục [${key}] đã lưu tổng cộng: ${currentData[key].length} video không trùng.`);
+                console.log(`✅ Mục [${key}] đang có tổng cộng: ${currentData[key].length} video.`);
             }
         } catch (err) {
-            console.error(`❌ Lỗi khi cào mục [${key}]:`, err.message);
+            console.error(`❌ Lỗi mục [${key}]:`, err.message);
         }
     }
 
-    // Ghi đè toàn bộ dữ liệu sạch vào file json duy nhất
     fs.writeFileSync(FILE_PATH, JSON.stringify(currentData, null, 2));
-    console.log("💾 [THÀNH CÔNG] Đã đồng bộ tất cả vào file videos.json gọn gàng!");
+    console.log("💾 [THÀNH CÔNG] Đã lưu tất cả vào file videos.json!");
 }
 
-// 💥 TỰ ĐỘNG CHẠY CÀO: Mỗi lần bật Server lên (hoặc Render tự khởi động lại) là tự đi cào bù video ngay
+// Bật server lên là tự động đi cào đợt đầu luôn
 crawlAndSaveToJSON();
 
-// ==========================================
-// API DÀNH CHO APP TV: ĐỌC TỪ FILE JSON RA TRẢ VỀ
-// ==========================================
+// API chính để App Android gọi lên lấy dữ liệu
 app.get('/api/category', (req, res) => {
     const categoryKey = req.query.name || "hai_huoc";
     const cursor = parseInt(req.query.cursor) || 0;
-    const count = 20; // Mỗi lần App đòi thì trả về 20 video
+    const count = 15; // Trả về 15 video mỗi lần gọi cho app mượt
 
     try {
-        // Đọc file json lên
         const currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
         const allVideos = currentData[categoryKey] || [];
 
-        // Cắt mảng (Phân trang tĩnh ngay trong file)
         const paginatedVideos = allVideos.slice(cursor, cursor + count);
         let nextCursor = cursor + count;
 
-        // Nếu người dùng cuộn đến cuối file, tự động xoay vòng lại từ đầu (0) để xem vô hạn
         if (nextCursor >= allVideos.length) {
-            nextCursor = 0;
+            nextCursor = 0; // Cuộn hết thì quay lại từ đầu video số 0
         }
 
-        // Trả về đúng cấu trúc Object mà Android đang đợi
         return res.json({
             videos: paginatedVideos,
             nextCursor: nextCursor
@@ -115,10 +146,10 @@ app.get('/api/category', (req, res) => {
     }
 });
 
-// NÚT KÍCH HOẠT BẰNG TAY: Ông giáo thích cào thêm lúc nào thì gõ link này trên trình duyệt
+// Nút kích hoạt cào thêm bằng tay: gõ link này trên trình duyệt để nạp thêm video
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
-    res.send("Đã lệnh cho Server cào thêm video tích lũy vào file JSON rồi nhé ông giáo!");
+    res.send("Đã cào thêm từ khóa mới nén vào file JSON rồi nhé!");
 });
 
-app.listen(PORT, () => console.log(`🚀 Server quản lý file JSON tập trung đã chạy tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server chạy tại cổng ${PORT}`));
