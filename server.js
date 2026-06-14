@@ -28,8 +28,21 @@ async function crawlAndSaveToJSON() {
         currentVideos = [];
     }
 
-    // Chọn ngẫu nhiên 4 từ khóa trong kho để đi quét mỗi lần
-    const selectedKeywords = [...keywordsDatabase].sort(() => 0.5 - Math.random()).slice(0, 4);
+    // 🔥 ĐOẠN SỬA LỖI: Tự động tương thích cả cấu trúc từ khóa cũ và mới để KHÔNG BAO GIỜ SẬP
+    let flatKeywords = [];
+    if (Array.isArray(keywordsDatabase)) {
+        flatKeywords = keywordsDatabase; // Nếu là mảng mới
+    } else if (keywordsDatabase && typeof keywordsDatabase === 'object') {
+        flatKeywords = Object.values(keywordsDatabase).flat(); // Nếu vẫn là object cũ, tự đập phẳng ra mảng
+    }
+
+    if (flatKeywords.length === 0) {
+        console.log("⚠️ [CẢNH BÁO] Không tìm thấy từ khóa nào để cào dữ liệu!");
+        return;
+    }
+
+    // Chọn ngẫu nhiên 4 từ khóa trong kho phẳng để đi quét mỗi lần
+    const selectedKeywords = [...flatKeywords].sort(() => 0.5 - Math.random()).slice(0, 4);
 
     for (const keyword of selectedKeywords) {
         try {
@@ -89,12 +102,20 @@ app.get(['/api/video', '/api/category'], (req, res) => {
             if (!Array.isArray(liveVideos)) liveVideos = [];
         }
 
+        // Ép kiểu kho dự phòng về mảng phẳng để an toàn tuyệt đối
+        let flatFallback = [];
+        if (Array.isArray(fallbackDatabase)) {
+            flatFallback = fallbackDatabase;
+        } else if (fallbackDatabase && typeof fallbackDatabase === 'object') {
+            flatFallback = Object.values(fallbackDatabase).flat();
+        }
+
         // Gộp kho quét được + kho dự phòng bất tử
-        const mergedResult = [...liveVideos, ...fallbackDatabase];
+        const mergedResult = [...liveVideos, ...flatFallback];
 
         // Lọc trùng ID
         const uniqueMap = new Map();
-        mergedResult.forEach(v => uniqueMap.set(v.video_id, v));
+        mergedResult.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
         const finalPlayList = Array.from(uniqueMap.values());
 
         // Xáo trộn ngẫu nhiên toàn bộ rổ video để mỗi lần load là một danh sách mới
@@ -106,7 +127,8 @@ app.get(['/api/video', '/api/category'], (req, res) => {
             data: shuffledVideos.slice(0, count)
         });
     } catch (e) {
-        return res.json({ code: 0, msg: "success", data: fallbackDatabase.sort(() => 0.5 - Math.random()).slice(0, count) });
+        let flatFallback = Array.isArray(fallbackDatabase) ? fallbackDatabase : Object.values(fallbackDatabase).flat();
+        return res.json({ code: 0, msg: "success", data: flatFallback.sort(() => 0.5 - Math.random()).slice(0, count) });
     }
 });
 
