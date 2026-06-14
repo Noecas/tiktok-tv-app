@@ -3,7 +3,53 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-const { fallbackDatabase, keywordsDatabase } = require('./video');
+// Chỉ lấy đống video dự phòng từ video.js, còn từ khóa quản lý trực tiếp ở dưới đây luôn
+const { fallbackDatabase } = require('./video');
+
+// =======================================================================================
+// 🔥🔥🔥 KHU VỰC QUẢN LÝ TỪ KHÓA CÀO VIDEO - ÔNG GIÁO THÊM/SỬA/XÓA Ở ĐÂY CHO DỄ THẤY 🔥🔥🔥
+// =======================================================================================
+const keywordsDatabase = [
+    // --- 1. Nhóm từ khóa cũ đang chạy ngon lành ---
+    "trend bien hinh tiktok viet nam", 
+    "nhac edm remix hot tiktok", 
+    "remix giat giat cuon", 
+    "vinahouse remix tiktok hot",
+    "mashup hot tiktok hien tai",
+    "dance trend tiktok viet nam",
+    "nhac tre hot tikwm",
+    "vibe gen z viet nam", 
+    "meme gen z hai huoc", 
+    "trend tiktok hien tai genz",
+    "flexing gen z viet nam", 
+    "slang gen z hai huoc",
+    "street style viet nam trend",
+    "review do an hot trend genz",
+    "lofi chill tam trang viet nam",
+
+    // --- 2. Nhóm từ khóa ông giáo mới yêu cầu bổ sung ---
+    "trend nhảy tiktok hot",
+    "nhạc căng đét tiktok",
+    "biến hình vịt hóa thiên nga",
+    "gái xinh nhảy edm hot",
+    "vũ điệu cuốn hút tiktok",
+    "podcast chữa lành tâm trạng gen z",
+
+    // --- 3. Gợi ý thêm vài trend kéo tương tác cực tốt hiện tại ---
+    "mukbang do an sieu ngon",
+    "review phim ngan tom tat hai huoc",
+    "funny meme viet nam giải trí",
+    "ootd phoi do thoi trang genz",
+    "vlog cuoc song hang ngay chill",
+    "goc khuat cuoc song tam trang",
+    " hate that i made you love me VN",
+    "TikTok Việt Nam"// ⚠️ LƯU Ý: Từ khóa cuối cùng của mảng KHÔNG ĐƯỢC có dấu phẩy nhé!
+];
+// =======================================================================================
+// 📌 Mẹo nhỏ: Muốn thêm từ khóa mới, ông cứ viết tiếp vào ngay phía TRÊN dòng "goc khuat cuoc song tam trang"
+// và nhớ thêm dấu phẩy ở cuối dòng đó là được!
+// =======================================================================================
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +68,6 @@ function isVietnameseContent(title) {
     if (foreignRegex.test(title)) return false;
 
     // 2. Kiểm tra xem tiêu đề có chứa dấu tiếng Việt hay không (để giữ lại clip thuần Việt)
-    // Các ký tự dấu đặc trưng của tiếng Việt
     const vnTones = /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i;
     
     // Nếu tiêu đề có chữ tiếng Việt HOẶC chứa các từ không dấu phổ biến thì cho qua
@@ -32,7 +77,6 @@ function isVietnameseContent(title) {
         return true;
     }
 
-    // Nếu tiêu đề toàn chữ tiếng Anh không dấu dài loằng ngoằng thì tạm thời loại bớt để ưu tiên Việt Nam
     return false;
 }
 
@@ -51,7 +95,6 @@ async function crawlAndSaveToJSON() {
         currentVideos = [];
     }
 
-    // Đảm bảo ép kiểu từ khóa về mảng phẳng
     let flatKeywords = [];
     if (Array.isArray(keywordsDatabase)) {
         flatKeywords = keywordsDatabase;
@@ -95,18 +138,19 @@ async function crawlAndSaveToJSON() {
                     }
 
                     validCount++;
+                    // 🌟 SỬA ĐỔI CHUẨN: Đổi key sang camelCase để khớp hoàn toàn với cấu trúc Android TV
                     return {
-                        video_id: v.video_id,
-                        play: v.play,
+                        videoId: v.video_id,
+                        videoUrl: v.play,
                         title: titleText,
                         cover: v.cover,
-                        play_count: v.play_count || 0,
-                        author: { nickname: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user" },
-                        music_info: { title: v.music_info?.title || "Âm thanh gốc" }
+                        views: v.play_count || 0,
+                        author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
+                        originUrl: v.play
                     };
                 }).filter(v => v !== null); // Loại bỏ những video nước ngoài bị đánh dấu null
 
-                console.log(`   👉 Kết quả lọc từ khóa [${keyword}]: Nhận ${validCount} clip Việt Nam | Loại bỏ ${skipCount} clip nước ngoài.`);
+                console.log(`    👉 Kết quả lọc từ khóa [${keyword}]: Nhận ${validCount} clip Việt Nam | Loại bỏ ${skipCount} clip nước ngoài.`);
                 currentVideos = [...currentVideos, ...fetched];
             }
         } catch (err) {
@@ -114,13 +158,12 @@ async function crawlAndSaveToJSON() {
         }
     }
 
-    // Lọc trùng ID video
+    // Lọc trùng theo thuộc tính videoId mới
     const uniqueMap = new Map();
-    currentVideos.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
+    currentVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
     
     // Nới rộng kho chứa lên 200 video Việt Nam xem cho đã đời
     const finalResult = Array.from(uniqueMap.values()).slice(-200);
-
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
     console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang có: ${finalResult.length} video sạch.`);
 }
@@ -128,7 +171,7 @@ async function crawlAndSaveToJSON() {
 // Chạy tự động cào dữ liệu khi vừa khởi động server
 crawlAndSaveToJSON();
 
-// 🔥 API TRẢ VỀ CHO APP TV (XÁO TRỘN BÙM XUM)
+// 🔥 API TRẢ VỀ CHO APP TV (TRẢ THẲNG MẢNG - KHÔNG BỌC ĐỐI TƯỢNG)
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 45; 
 
@@ -140,32 +183,84 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         }
 
         let flatFallback = Array.isArray(fallbackDatabase) ? fallbackDatabase : Object.values(fallbackDatabase).flat();
-        const mergedResult = [...liveVideos, ...flatFallback];
+        
+        // Chuẩn hóa luôn dữ liệu fallback nếu có gọi tới
+        const normalizedFallback = flatFallback.map(v => ({
+            videoId: v.video_id || v.videoId,
+            videoUrl: v.play || v.videoUrl,
+            title: v.title || "Nội dung dự phòng",
+            cover: v.cover,
+            views: v.play_count || v.views || 0,
+            author: typeof v.author === 'object' ? (v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user") : (v.author || "@tiktok_user"),
+            originUrl: v.play || v.videoUrl
+        }));
+
+        const mergedResult = [...liveVideos, ...normalizedFallback];
 
         const uniqueMap = new Map();
-        mergedResult.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
+        mergedResult.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
         const finalPlayList = Array.from(uniqueMap.values());
 
         // Xáo trộn ngẫu nhiên toàn bộ mảng (Vui, Buồn, Nhạc quẩy xen kẽ thất thường cực cuốn)
         const shuffledVideos = finalPlayList.sort(() => 0.5 - Math.random());
         
-        return res.json({
-            code: 0,
-            msg: "success",
-            data: shuffledVideos.slice(0, count)
-        });
+        // Trả thẳng danh sách mảng JSON, chuẩn khít với List<RenderVideoResponse> trong Android
+        return res.json(shuffledVideos.slice(0, count));
     } catch (e) {
-        let flatFallback = Array.isArray(fallbackDatabase) ? fallbackDatabase : Object.values(fallbackDatabase).flat();
-        return res.json({ code: 0, msg: "success", data: flatFallback.sort(() => 0.5 - Math.random()).slice(0, count) });
+        return res.json([]);
+    }
+});
+
+// 🔥 BỔ SUNG MỚI: API TÌM KIẾM ĐỘNG THEO TỪ KHÓA BẤT KỲ (Dành cho Search Bar trên TV App)
+app.get('/api/video/search', async (req, res) => {
+    const keyword = req.query.keyword;
+    const count = parseInt(req.query.count) || 30;
+    
+    if (!keyword) return res.json([]);
+
+    try {
+        console.log(`🔍 [LIVE SEARCH] Người dùng TV đang gõ tìm từ khóa: "${keyword}"`);
+        const randomCursor = Math.floor(Math.random() * 3) * 10; // Quét từ trang 0 đến trang 20 ngẫu nhiên
+        const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=${count}&cursor=${randomCursor}`;
+        
+        const response = await axios.get(targetUrl, { 
+            timeout: 12000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
+            const fetched = response.data.data.videos.map(v => {
+                const titleText = v.title || "";
+                if (!isVietnameseContent(titleText)) return null; 
+
+                return {
+                    videoId: v.video_id,
+                    videoUrl: v.play,
+                    title: titleText,
+                    cover: v.cover,
+                    views: v.play_count || 0,
+                    author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
+                    originUrl: v.play
+                };
+            }).filter(v => v !== null);
+
+            // Trộn bùm xum kết quả tìm kiếm live cho đúng gu ông giáo thích
+            const shuffledSearch = fetched.sort(() => 0.5 - Math.random());
+            return res.json(shuffledSearch);
+        }
+        return res.json([]);
+    } catch (err) {
+        console.log(`⚠️ Lỗi tìm kiếm live từ khóa [${keyword}]: ${err.message}`);
+        return res.json([]);
     }
 });
 
 // 🔥 API TRUNG CHUYỂN BÌNH LUẬN (MỚI THÊM CHO APP TV)
 app.get('/api/comment/list', async (req, res) => {
     const videoId = req.query.video_id;
-    if (!videoId) {
-        return res.json({ code: -1, msg: "Thiếu tham số video_id rồi ông giáo!" });
-    }
+    if (!videoId) return res.json({ code: -1, msg: "Thiếu tham số video_id rồi ông giáo!" });
     
     try {
         console.log(`💬 Đang trung chuyển lấy bình luận cho video ID: ${videoId}`);
@@ -176,10 +271,8 @@ app.get('/api/comment/list', async (req, res) => {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             }
         });
-        
         return res.json(response.data);
     } catch (err) {
-        console.log(`⚠️ Lỗi khi tải bình luận từ TikWM: ${err.message}`);
         return res.json({ code: -1, msg: err.message });
     }
 });
