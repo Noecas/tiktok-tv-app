@@ -9,33 +9,34 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
-// Trang chào mừng ở link gốc tránh lỗi Cannot GET /
 app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào rồi ông giáo ơi!");
+    res.send("🚀 Server TikTok TV App đang chạy ở chế độ MỘT KHO VIDEO CHUNG DUY NHẤT!");
 });
 
-// Hàm tự động cào dữ liệu nâng cấp (ĐÃ FIX: Thêm phân trang ngẫu nhiên tránh trùng lặp)
+// Hàm cào dữ liệu: Tìm được gì là vứt hết vào một mảng phẳng duy nhất
 async function crawlAndSaveToJSON() {
-    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu...");
-    let currentData = {};
+    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu gom về một mối...");
+    let currentVideos = [];
+    
     try {
         if (fs.existsSync(FILE_PATH)) {
-            currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+            const fileContent = fs.readFileSync(FILE_PATH, 'utf8');
+            currentVideos = JSON.parse(fileContent);
+            if (!Array.isArray(currentVideos)) currentVideos = [];
         }
     } catch (e) {
-        currentData = {};
+        currentVideos = [];
     }
 
-    for (const [key, keywords] of Object.entries(keywordsDatabase)) {
-        const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
+    // Chọn ngẫu nhiên 4 từ khóa trong kho để đi quét mỗi lần
+    const selectedKeywords = [...keywordsDatabase].sort(() => 0.5 - Math.random()).slice(0, 4);
+
+    for (const keyword of selectedKeywords) {
         try {
-            // 🔥 CẢI TIẾN CHÍ MẠNG: Tự động nhảy trang ngẫu nhiên (Ví dụ: Trang 0, 10, 20, 30, 40)
-            const randomCursor = Math.floor(Math.random() * 5) * 10; 
+            const randomCursor = Math.floor(Math.random() * 6) * 10; 
+            console.log(`⏳ Đang quét từ khóa: "${keyword}" | Trang: ${randomCursor}`);
             
-            console.log(`⏳ Đang cào cho mục [${key}] | Từ khóa: "${randomKeyword}" | Trang số (Cursor): ${randomCursor}`);
-            
-            // Đã thay thế cursor=0 cố định thành biến số trang ngẫu nhiên ${randomCursor}
-            const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(randomKeyword)}&count=30&cursor=${randomCursor}`;
+            const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=25&cursor=${randomCursor}`;
             
             const response = await axios.get(targetUrl, { 
                 timeout: 8000,
@@ -45,7 +46,7 @@ async function crawlAndSaveToJSON() {
             });
 
             if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
-                const fetchedVideos = response.data.data.videos.map(v => ({
+                const fetched = response.data.data.videos.map(v => ({
                     video_id: v.video_id,
                     play: v.play,
                     title: v.title || "Video TikTok thú vị",
@@ -55,51 +56,48 @@ async function crawlAndSaveToJSON() {
                     music_info: { title: v.music_info?.title || "Âm thanh gốc" }
                 }));
 
-                const oldList = currentData[key] || [];
-                // Giữ lại tối đa 10 video cũ gần nhất để nhường chỗ cho rổ video mới
-                const cleanOldList = oldList.slice(-10); 
-                const mergedList = [...cleanOldList, ...fetchedVideos];
-                
-                const uniqueMap = new Map();
-                mergedList.forEach(video => { if (video.video_id) uniqueMap.set(video.video_id, video); });
-                
-                currentData[key] = Array.from(uniqueMap.values());
-                console.log(`✅ Mục [${key}] tích lũy thành công! Kho đang có: ${currentData[key].length} video.`);
+                // Ném thẳng vào mảng chung
+                currentVideos = [...currentVideos, ...fetched];
             }
         } catch (err) {
-            console.log(`⚠️ Không cào được mục [${key}] do bên thứ ba chặn. Sẽ dùng kho dự phòng.`);
+            console.log(`⚠️ Lỗi cào từ khóa [${keyword}]: ${err.message}`);
         }
     }
-    fs.writeFileSync(FILE_PATH, JSON.stringify(currentData, null, 2));
-    console.log("💾 [THÀNH CÔNG] Đã đồng bộ kho dữ liệu mới vào file JSON!");
+
+    // Lọc trùng ID video trong rổ chung
+    const uniqueMap = new Map();
+    currentVideos.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
+    
+    // Giữ lại tối đa 150 video mới nhất để kho luôn mượt, tránh nặng server
+    const finalResult = Array.from(uniqueMap.values()).slice(-150);
+
+    fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
+    console.log(`💾 [XONG] Đã gộp kho phẳng thành công! Tổng cộng có: ${finalResult.length} video.`);
 }
 
-// Chạy cào tự động lúc khởi động
+// Tự động kích hoạt khi bật server
 crawlAndSaveToJSON();
 
-// 🔥 API CHÍNH: Trả dữ liệu mượt mà về cho Android Studio
-app.get('/api/category', (req, res) => {
-    const categoryKey = req.query.name || "hai_huoc";
-    const count = parseInt(req.query.count) || 35; 
+// 🔥 LINK API DUY NHẤT: Trả về toàn bộ kho video chung đã xáo trộn ngẫu nhiên
+app.get(['/api/video', '/api/category'], (req, res) => {
+    const count = parseInt(req.query.count) || 40; 
 
     try {
-        let currentData = {};
+        let liveVideos = [];
         if (fs.existsSync(FILE_PATH)) {
-            currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+            liveVideos = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+            if (!Array.isArray(liveVideos)) liveVideos = [];
         }
 
-        const liveVideos = currentData[categoryKey] || [];
-        const fallbackVideos = fallbackDatabase[categoryKey] || [];
+        // Gộp kho quét được + kho dự phòng bất tử
+        const mergedResult = [...liveVideos, ...fallbackDatabase];
 
-        // Gộp chung video cào được VÀ video cứu nguy để mảng dữ liệu luôn đầy đặn phong phú
-        const mergedResult = [...liveVideos, ...fallbackVideos];
-
-        // Xóa trùng ID nếu có
+        // Lọc trùng ID
         const uniqueMap = new Map();
         mergedResult.forEach(v => uniqueMap.set(v.video_id, v));
         const finalPlayList = Array.from(uniqueMap.values());
 
-        // Xáo trộn ngẫu nhiên danh sách để mỗi lần mở TV là một trải nghiệm mới
+        // Xáo trộn ngẫu nhiên toàn bộ rổ video để mỗi lần load là một danh sách mới
         const shuffledVideos = finalPlayList.sort(() => 0.5 - Math.random());
         
         return res.json({
@@ -108,14 +106,14 @@ app.get('/api/category', (req, res) => {
             data: shuffledVideos.slice(0, count)
         });
     } catch (e) {
-        return res.json({ code: 0, msg: "success", data: fallbackDatabase[categoryKey] || [] });
+        return res.json({ code: 0, msg: "success", data: fallbackDatabase.sort(() => 0.5 - Math.random()).slice(0, count) });
     }
 });
 
-// Nút kích hoạt cào thêm bằng tay
+// Đường dẫn kích hoạt cào bằng tay
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
-    res.send("Đã chạy lệnh cào nâng cấp xới tung các trang TikTok rồi nhé ông giáo!");
+    res.send("Đã cào thêm video mới vứt thẳng vào kho chung rồi ông giáo nhé!");
 });
 
-app.listen(PORT, () => console.log(`🚀 Server chạy mượt mà tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server tổng hợp chạy mượt mà tại cổng ${PORT}`));
