@@ -25,6 +25,9 @@ const keywordsDatabase = [
     "slang gen z hai huoc",
     "street style viet nam trend",
     "review do an hot trend genz",
+    "Audio Việt Nam",
+    "Audio Tổng Tài",
+    "Audio Thiên Kim",
 
     // --- 2. Nhóm từ khóa ông giáo mới yêu cầu bổ sung ---
     "trend nhảy tiktok hot",
