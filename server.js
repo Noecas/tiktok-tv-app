@@ -1,80 +1,56 @@
 const express = require('express');
-const fs = require('fs');
 const axios = require('axios');
 const app = express();
-const PORT = process.env.PORT || 3000; // Render tự cấp cổng, không tự điền 3000 cố định
+const PORT = process.env.PORT || 3000;
 
-// ====== HÀM TỰ ĐỘNG CÀO DỮ LIỆU KHI START SERVER ======
-async function crawlVietnameseContent(categoryName, searchKeyword) {
+// API LẤY DANH SÁCH VIDEO LIVE - KHÔNG DÙNG FILE TĨNH NỮA
+app.get('/api/category', async (req, res) => {
+    const categoryName = req.query.name;
+    
+    // Tự động phân phối từ khóa theo danh mục TV gửi lên
+    let searchKeyword = "hài hước tik tok việt nam meme";
+    if (categoryName === "tam_trang") {
+        searchKeyword = "nhạc buồn tâm trạng chill lofi";
+    }
+
     try {
-        console.log(`🇻🇳 Bot đang quét mục [${categoryName}] với từ khóa: "${searchKeyword}"...`);
+        console.log(`🔍 TV đang gọi! Đang cào LIVE danh mục [${categoryName}]...`);
+        
         const response = await axios.post('https://www.tikwm.com/api/feed/search', {
             keywords: searchKeyword,
-            count: 15,
+            count: 12, // Lấy 12 video mỗi lần load cho nhẹ app
             cursor: 0
         });
 
         if (response.data && response.data.data && response.data.data.videos) {
             const videoList = response.data.data.videos;
             const parsedVideos = [];
+            
             for (let video of videoList) {
                 parsedVideos.push({
                     videoId: video.video_id,
                     author: "@" + video.author.unique_id,
                     title: video.title,
-                    cover: video.cover,
+                    cover: video.cover, // Cover mới tinh không lo sập link
                     views: video.play_count,
+                    // 🔥 ĐÚT THẲNG LINK .MP4 VÀO ĐÂY CHO APP TV HÚP LUÔN, KHÔNG CẦN CHUYỂN HƯỚNG CỒ KỀNH
+                    videoUrl: video.play, 
                     originUrl: `https://www.tiktok.com/@${video.author.unique_id}/video/${video.video_id}`
                 });
             }
-            fs.writeFileSync(`./${categoryName}.json`, JSON.stringify(parsedVideos, null, 2), 'utf-8');
-            console.log(`✅ Đã cập nhật file: ${categoryName}.json`);
+            
+            // Trả data tươi sống về cho App TV
+            return res.json(parsedVideos);
+        } else {
+            return res.status(404).json({ error: "Không tìm thấy video nào!" });
         }
     } catch (error) {
-        console.error(`❌ Lỗi cào mục [${categoryName}]:`, error.message);
-    }
-}
-
-// Chạy cào luôn khi server bật lên
-async function initBot() {
-    await crawlVietnameseContent("hai_huoc", "hài hước tik tok việt nam meme");
-    await crawlVietnameseContent("tam_trang", "nhạc buồn tâm trạng chill lofi");
-    console.log("🎉 DATA ĐÃ SẴN SÀNG PHỤC VỤ TV!");
-}
-initBot();
-
-
-// ====== CÁC ĐƯỜNG DẪN API CHO APP TV GỌI CẤP LUỒNG ======
-
-// 1. Lấy danh sách video hiện lên ô vuông Grid
-app.get('/api/category', (req, res) => {
-    const categoryName = req.query.name;
-    const filePath = `./${categoryName}.json`;
-    if (fs.existsSync(filePath)) {
-        const rawData = fs.readFileSync(filePath);
-        return res.json(JSON.parse(rawData));
-    } else {
-        return res.status(404).json({ error: "Chưa có data danh mục này!" });
+        console.error("Lỗi cào live:", error.message);
+        return res.status(500).json({ error: "Lỗi server: " + error.message });
     }
 });
 
-// Sửa lại đoạn endpoint stream trả về dạng JSON thay vì Redirect
-app.get('/api/stream', async (req, res) => {
-    const tiktokUrl = req.query.url;
-    if (!tiktokUrl) return res.status(400).json({ error: "Thiếu url!" });
-    try {
-        const apiResponse = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(tiktokUrl)}`);
-        if (apiResponse.data && apiResponse.data.data) {
-            // Trả về object JSON chứa link để App TV tự bóc ra đem đi phát
-            return res.json({ url: apiResponse.data.data.play }); 
-        }
-        return res.status(404).json({ error: "Không bóc được luồng" });
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
-
-// Giữ cho server luôn thức
+// Chạy server
 app.listen(PORT, () => {
-    console.log(`🚀 Server đang chạy tít mù tại cổng ${PORT}`);
+    console.log(`🚀 Server Real-time đang chạy tại cổng ${PORT}`);
 });
