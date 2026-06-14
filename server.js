@@ -43,7 +43,8 @@ const keywordsDatabase = [
     "goc khuat cuoc song tam trang",
     " hate that i made you love me VN",
     "TikTok Việt Nam",
-    "Trai đẹp Việt Nam"
+    "Trai đẹp Việt Nam",
+    "xuhuong"
 ];
 // =======================================================================================
 // 📌 Mẹo nhỏ: Muốn thêm từ khóa mới, ông cứ viết tiếp vào ngay phía TRÊN dòng "goc khuat cuoc song tam trang"
