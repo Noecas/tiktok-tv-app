@@ -43,7 +43,8 @@ const keywordsDatabase = [
     "vlog cuoc song hang ngay chill",
     "goc khuat cuoc song tam trang",
     " hate that i made you love me VN",
-    "TikTok Việt Nam"// ⚠️ LƯU Ý: Từ khóa cuối cùng của mảng KHÔNG ĐƯỢC có dấu phẩy nhé!
+    "TikTok Việt Nam",
+    "Trai đẹp Việt Nam"
 ];
 // =======================================================================================
 // 📌 Mẹo nhỏ: Muốn thêm từ khóa mới, ông cứ viết tiếp vào ngay phía TRÊN dòng "goc khuat cuoc song tam trang"
