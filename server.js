@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
 app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV App đang hoạt động - Chế độ: KHO VIDEO TREND VIỆT NAM!");
+    res.send("🚀 Server TikTok TV App đang hoạt động - Chế độ: KHO VIDEO TREND GEN Z & EDM VIỆT NAM!");
 });
 
 // 🔥 HÀM KIỂM TRA CHẶN VIDEO NƯỚC NGOÀI (Chặn chữ Trung, Hàn, Nhật và các clip không có chữ Việt)
@@ -26,7 +26,7 @@ function isVietnameseContent(title) {
     const vnTones = /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i;
     
     // Nếu tiêu đề có chữ tiếng Việt HOẶC chứa các từ không dấu phổ biến thì cho qua
-    const commonVnWords = /threads|tiktok|remix|hot|review|vlog|drama|vs|tv|idols|p1|p2|part/i;
+    const commonVnWords = /threads|tiktok|remix|hot|review|vlog|drama|vs|tv|idols|p1|p2|part|dance|mashup|edm|flex/i;
     
     if (vnTones.test(title) || commonVnWords.test(title)) {
         return true;
@@ -38,7 +38,7 @@ function isVietnameseContent(title) {
 
 // Hàm cào dữ liệu: Tìm trend Việt Nam và lọc trùng, lọc nước ngoài
 async function crawlAndSaveToJSON() {
-    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu trend Việt Nam...");
+    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu trend Gen Z / EDM Việt Nam...");
     let currentVideos = [];
     
     try {
@@ -88,7 +88,7 @@ async function crawlAndSaveToJSON() {
                 const fetched = response.data.data.videos.map(v => {
                     const titleText = v.title || "";
                     
-                    // 🔥 BỘ LỌC THẦN THÁNH: Chỉ giữ lại video có nội dung Tiếng Việt/Trend Việt
+                    // 🔥 BỘ LỌC: Chỉ giữ lại video có nội dung Tiếng Việt/Trend Việt
                     if (!isVietnameseContent(titleText)) {
                         skipCount++;
                         return null; 
@@ -125,10 +125,10 @@ async function crawlAndSaveToJSON() {
     console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang có: ${finalResult.length} video sạch.`);
 }
 
-// Chạy tự động khi khởi động server
+// Chạy tự động cào dữ liệu khi vừa khởi động server
 crawlAndSaveToJSON();
 
-// API TRẢ VỀ CHO APP TV
+// 🔥 API TRẢ VỀ CHO APP TV (XÁO TRỘN BÙM XUM)
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 45; 
 
@@ -146,7 +146,7 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         mergedResult.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
         const finalPlayList = Array.from(uniqueMap.values());
 
-        // Xáo trộn ngẫu nhiên để đổi vị liên tục
+        // Xáo trộn ngẫu nhiên toàn bộ mảng (Vui, Buồn, Nhạc quẩy xen kẽ thất thường cực cuốn)
         const shuffledVideos = finalPlayList.sort(() => 0.5 - Math.random());
         
         return res.json({
@@ -160,10 +160,45 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     }
 });
 
-// Link kích hoạt bằng tay
+// 🔥 API TRUNG CHUYỂN BÌNH LUẬN (MỚI THÊM CHO APP TV)
+app.get('/api/comment/list', async (req, res) => {
+    const videoId = req.query.video_id;
+    if (!videoId) {
+        return res.json({ code: -1, msg: "Thiếu tham số video_id rồi ông giáo!" });
+    }
+    
+    try {
+        console.log(`💬 Đang trung chuyển lấy bình luận cho video ID: ${videoId}`);
+        const targetUrl = `https://www.tikwm.com/api/comment/list?video_id=${videoId}&count=30`;
+        
+        const response = await axios.get(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            }
+        });
+        
+        return res.json(response.data);
+    } catch (err) {
+        console.log(`⚠️ Lỗi khi tải bình luận từ TikWM: ${err.message}`);
+        return res.json({ code: -1, msg: err.message });
+    }
+});
+
+// Link kích hoạt bằng tay khi cần khẩn cấp
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
     res.send("Đã cập nhật quét kho video Trend Việt Nam mới và dọn sạch clip nước ngoài!");
 });
+
+// ====== BỘ TỰ ĐỘNG LÀM MỚI KHO VIDEO (HẸN GIỜ CÀO NGẦM MỚI THÊM) ======
+// Cứ đúng 45 phút, server sẽ tự động kích hoạt chế độ cào để thay đổi kho video liên tục
+setInterval(async () => {
+    console.log("⏰ [HẸN GIỜ] Tự động kích hoạt bot quét bài mới chống cạn kho dữ liệu...");
+    try {
+        await crawlAndSaveToJSON();
+    } catch (err) {
+        console.log("⚠️ Lỗi cập nhật tự động định kỳ:", err.message);
+    }
+}, 45 * 60 * 1000); // 45 phút tính bằng mili-giây
 
 app.listen(PORT, () => console.log(`🚀 Server Trend Việt chạy mượt mà tại cổng ${PORT}`));
