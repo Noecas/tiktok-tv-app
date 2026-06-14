@@ -48,14 +48,12 @@ const keywordsDatabase = {
         "sự thật lạ lùng bạn chưa biết", "khám phá thế giới quanh ta",
         "lịch sử thế giới thú vị"
     ],
-    // MỤC VĂN MINH (Nội dung tích cực, chữa lành, bài học sâu sắc)
     "van_minh": [
         "lối sống văn minh tích cực", "bài học cuộc sống ý nghĩa", 
         "phát triển bản thân mỗi ngày", "chữa lành tâm hồn nhẹ nhàng", 
         "truyền cảm hứng tích cực", "ứng xử văn minh lịch sự",
         "động lực cuộc sống mỗi ngày"
     ],
-    // MỤC THREADS TOPIC (Drama, tâm sự, chuyện hay từ Threads VN)
     "threads_topic": [
         "story threads việt nam", "tóm tắt drama threads", 
         "tâm sự threads hài hước", "threads hot topic vn", 
@@ -76,37 +74,45 @@ async function crawlAndSaveToJSON() {
     }
 
     for (const [key, keywords] of Object.entries(keywordsDatabase)) {
-        // Mỗi lần cào, server lấy ngẫu nhiên 1 từ khóa trong danh sách của mục đó để nội dung luôn đổi mới
         const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
         
         try {
             console.log(`⏳ Đang cào cho mục [${key}] bằng từ khóa: "${randomKeyword}"`);
             const response = await axios.post('https://www.tikwm.com/api/feed/search', {
                 keywords: randomKeyword,
-                count: 35, // Lấy 35 video mỗi mục
+                count: 50, // 🔥 ĐÃ TĂNG: Lấy hẳn 50 video mỗi lần cào cho kho dữ liệu mau đầy
                 cursor: 0
             });
 
-            if (response.data && response.data.data && response.data.data.videos) {
+            if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
+                // ĐÃ SỬA: Map chuẩn xác 100% các trường dữ liệu khớp với Model Android App (TikWMVideoDetail)
                 const fetchedVideos = response.data.data.videos.map(v => ({
-                    videoId: v.video_id,
-                    author: "@" + v.author.unique_id,
-                    title: v.title,
+                    video_id: v.video_id,
+                    play: v.play,
+                    title: v.title || "Video TikTok",
                     cover: v.cover,
-                    views: v.play_count || 0,
-                    videoUrl: v.play,
-                    originUrl: `https://www.tiktok.com/@${v.author.unique_id}/video/${v.video_id}`
+                    play_count: v.play_count || 0,
+                    author: {
+                        nickname: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user"
+                    },
+                    music_info: {
+                        title: v.music_info?.title || "Âm thanh gốc"
+                    }
                 }));
 
                 const oldList = currentData[key] || [];
                 const mergedList = [...oldList, ...fetchedVideos];
 
-                // LỌC TRÙNG TUYỆT ĐỐI BẰNG VIDEO ID
+                // LỌC TRÙNG TUYỆT ĐỐI BẰNG VIDEO ID CHUẨN
                 const uniqueMap = new Map();
-                mergedList.forEach(video => uniqueMap.set(video.videoId, video));
+                mergedList.forEach(video => {
+                    if (video.video_id) uniqueMap.set(video.video_id, video);
+                });
                 
                 currentData[key] = Array.from(uniqueMap.values());
-                console.log(`✅ Mục [${key}] đang có tổng cộng: ${currentData[key].length} video.`);
+                console.log(`✅ Mục [${key}] đang tích lũy tổng cộng: ${currentData[key].length} video.`);
+            } else {
+                console.log(`⚠️ TikWM không trả mảng videos cho mục [${key}]. Giữ nguyên list cũ.`);
             }
         } catch (err) {
             console.error(`❌ Lỗi mục [${key}]:`, err.message);
@@ -114,42 +120,53 @@ async function crawlAndSaveToJSON() {
     }
 
     fs.writeFileSync(FILE_PATH, JSON.stringify(currentData, null, 2));
-    console.log("💾 [THÀNH CÔNG] Đã lưu tất cả vào file videos.json!");
+    console.log("💾 [THÀNH CÔNG] Đã lưu tất cả tích lũy vào file videos.json!");
 }
 
 // Bật server lên là tự động đi cào đợt đầu luôn
 crawlAndSaveToJSON();
 
-// API chính để App Android gọi lên lấy dữ liệu
+// ========================================================
+// API CHÍNH TRẢ VỀ: ĐÃ ĐỔI THEO ĐÚNG ĐỊNH DẠNG RETROFIT APP TV
+// ========================================================
 app.get('/api/category', (req, res) => {
     const categoryKey = req.query.name || "hai_huoc";
-    const cursor = parseInt(req.query.cursor) || 0;
-    const count = 15; // Trả về 15 video mỗi lần gọi cho app mượt
+    
+    // 🔥 ĐÃ TĂNG: Mặc định nạp hẳn 35 video lên cho App Android cuộn mỏi tay
+    const count = parseInt(req.query.count) || 35; 
 
     try {
+        if (!fs.existsSync(FILE_PATH)) {
+            return res.json({ code: 0, msg: "Đợi xíu đang khởi tạo dữ liệu", data: [] });
+        }
+
         const currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
         const allVideos = currentData[categoryKey] || [];
 
-        const paginatedVideos = allVideos.slice(cursor, cursor + count);
-        let nextCursor = cursor + count;
-
-        if (nextCursor >= allVideos.length) {
-            nextCursor = 0; // Cuộn hết thì quay lại từ đầu video số 0
+        if (allVideos.length === 0) {
+            return res.json({ code: 0, msg: "Danh mục trống", data: [] });
         }
 
+        // 🧠 THUẬT TOÁN ĐỔI MỚI: Trộn ngẫu nhiên danh sách video có trong kho dữ liệu
+        // Giúp mỗi lần người dùng bấm vào danh mục trên TV sẽ hiện ra loạt video mới tinh!
+        const shuffledVideos = [...allVideos].sort(() => 0.5 - Math.random());
+        const selectedBatch = shuffledVideos.slice(0, count);
+
+        // ĐÃ SỬA CHUẨN: Trả về đúng object cấu trúc TikWMFeedResponse (code, msg, data)
         return res.json({
-            videos: paginatedVideos,
-            nextCursor: nextCursor
+            code: 0,
+            msg: "success",
+            data: selectedBatch
         });
     } catch (e) {
-        return res.status(500).json({ error: e.message });
+        return res.status(500).json({ code: -1, msg: e.message, data: null });
     }
 });
 
-// Nút kích hoạt cào thêm bằng tay: gõ link này trên trình duyệt để nạp thêm video
+// Nút kích hoạt cào thêm bằng tay: gõ link này trên trình duyệt để nạp thêm video vỗ béo kho JSON
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
-    res.send("Đã cào thêm từ khóa mới nén vào file JSON rồi nhé!");
+    res.send("Đã cào thêm từ khóa mới nén vào file JSON rồi nhé ông giáo!");
 });
 
-app.listen(PORT, () => console.log(`🚀 Server chạy tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server chạy mượt mà tại cổng ${PORT}`));
