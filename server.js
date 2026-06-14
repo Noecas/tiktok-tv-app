@@ -1,60 +1,79 @@
+const express = require('express');
+const fs = require('fs');
 const axios = require('axios');
-const fs = require('fs'); // Thư viện có sẵn của Node.js để ghi file
+const app = express();
+const PORT = process.env.PORT || 3000; // Render tự cấp cổng, không tự điền 3000 cố định
 
-// Hàm đi săn video từ TikWM theo Từ khóa tiếng Việt
+// ====== HÀM TỰ ĐỘNG CÀO DỮ LIỆU KHI START SERVER ======
 async function crawlVietnameseContent(categoryName, searchKeyword) {
     try {
-        console.log(`\n🇻🇳 Bot đang quét mục [${categoryName}] với từ khóa: "${searchKeyword}"...`);
-        
-        // Gọi API TikWM để tìm kiếm video đang hot
+        console.log(`🇻🇳 Bot đang quét mục [${categoryName}] với từ khóa: "${searchKeyword}"...`);
         const response = await axios.post('https://www.tikwm.com/api/feed/search', {
             keywords: searchKeyword,
-            count: 10, // Lấy thử 10 cái test trước cho nhanh
+            count: 15,
             cursor: 0
         });
 
         if (response.data && response.data.data && response.data.data.videos) {
             const videoList = response.data.data.videos;
             const parsedVideos = [];
-            
             for (let video of videoList) {
-                // Cấu trúc dữ liệu tối giản để hiện lên App TV
                 parsedVideos.push({
                     videoId: video.video_id,
                     author: "@" + video.author.unique_id,
                     title: video.title,
-                    cover: video.cover, // Link ảnh Thumbnail hiện ở danh sách ô vuông
-                    views: video.play_count, // Lượt xem
+                    cover: video.cover,
+                    views: video.play_count,
                     originUrl: `https://www.tiktok.com/@${video.author.unique_id}/video/${video.video_id}`
                 });
             }
-
-            // Ghi dữ liệu cào được thành file JSON ngay trong thư mục
-            const fileName = `${categoryName}.json`;
-            fs.writeFileSync(fileName, JSON.stringify(parsedVideos, null, 2), 'utf-8');
-            console.log(`✅ Đã lưu xong dữ liệu mục [${categoryName}] vào file: ${fileName}`);
-            console.log(`👉 Thử xem mẫu 1 item cào được:`, parsedVideos[0]);
-        } else {
-            console.log(`⚠️ Không tìm thấy video nào cho mục [${categoryName}].`);
+            fs.writeFileSync(`./${categoryName}.json`, JSON.stringify(parsedVideos, null, 2), 'utf-8');
+            console.log(`✅ Đã cập nhật file: ${categoryName}.json`);
         }
     } catch (error) {
-        console.error(`❌ Lỗi khi cào mục [${categoryName}]:`, error.message);
+        console.error(`❌ Lỗi cào mục [${categoryName}]:`, error.message);
     }
 }
 
-// 🔥 TRÌNH KÍCH HOẠT CHẠY TỔNG HỢP CÁC TAB VIỆT NAM
-async function startCrawlVN() {
-    console.log("🚀 BẮT ĐẦU CÀO DỮ LIỆU VIDEO VIỆT NAM...");
-    
-    // Test trước mục Hài Hước
+// Chạy cào luôn khi server bật lên
+async function initBot() {
     await crawlVietnameseContent("hai_huoc", "hài hước tik tok việt nam meme");
-    
-    // Test tiếp mục Buồn / Tâm trạng
     await crawlVietnameseContent("tam_trang", "nhạc buồn tâm trạng chill lofi");
-
-    console.log("\n🎉 HOÀN THÀNH TẤT CẢ! Ông kiểm tra thư mục xem đã có file .json chưa nhé.");
-    process.exit(); 
+    console.log("🎉 DATA ĐÃ SẴN SÀNG PHỤC VỤ TV!");
 }
+initBot();
 
-// Chạy lệnh gom hàng
-startCrawlVN();
+
+// ====== CÁC ĐƯỜNG DẪN API CHO APP TV GỌI CẤP LUỒNG ======
+
+// 1. Lấy danh sách video hiện lên ô vuông Grid
+app.get('/api/category', (req, res) => {
+    const categoryName = req.query.name;
+    const filePath = `./${categoryName}.json`;
+    if (fs.existsSync(filePath)) {
+        const rawData = fs.readFileSync(filePath);
+        return res.json(JSON.parse(rawData));
+    } else {
+        return res.status(404).json({ error: "Chưa có data danh mục này!" });
+    }
+});
+
+// 2. Bóc link thô .mp4 truyền thẳng vào ExoPlayer để phát
+app.get('/api/stream', async (req, res) => {
+    const tiktokUrl = req.query.url;
+    if (!tiktokUrl) return res.status(400).send("Thiếu url!");
+    try {
+        const apiResponse = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(tiktokUrl)}`);
+        if (apiResponse.data && apiResponse.data.data) {
+            return res.redirect(apiResponse.data.data.play); // Redirect 302 cho ExoPlayer húp luôn luồng video thô
+        }
+        return res.status(404).send("Không bóc được luồng");
+    } catch (error) {
+        return res.status(500).send("Lỗi luồng: " + error.message);
+    }
+});
+
+// Giữ cho server luôn thức
+app.listen(PORT, () => {
+    console.log(`🚀 Server đang chạy tít mù tại cổng ${PORT}`);
+});
