@@ -1,38 +1,11 @@
-const express = require('express');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
-// Nhập khẩu dữ liệu gọn gàng từ file video.js sang
-const { fallbackDatabase, keywordsDatabase } = require('./video');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const FILE_PATH = path.join(__dirname, 'videos.json');
-
-// Khởi tạo file JSON bằng kho dữ liệu cứu nguy ban đầu (Đã sửa lỗi tự tạo ID)
-if (!fs.existsSync(FILE_PATH)) {
-    const initializedData = {};
-    Object.keys(fallbackDatabase).forEach(key => {
-        initializedData[key] = fallbackDatabase[key].map((v, i) => ({
-            ...v,
-            video_id: v.video_id || `${key}_init_${i}_${Math.random().toString(36).substr(2, 5)}`
-        }));
-    });
-    fs.writeFileSync(FILE_PATH, JSON.stringify(initializedData, null, 2));
-}
-
-// Trang chào mừng ở link gốc tránh lỗi Cannot GET /
-app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào rồi ông giáo ơi!");
-});
-
-// Hàm tự động cào dữ liệu nâng cấp (ĐÃ FIX LỖI LỌC TRÙNG NUỐT VIDEO)
+// Hàm tự động cào dữ liệu nâng cấp (Bản Vá Lỗi Kẹt Dữ Liệu Cũ)
 async function crawlAndSaveToJSON() {
     console.log("🔄 [HỆ THỐNG] Bắt đầu cào dữ liệu tích lũy...");
     let currentData = {};
     try {
-        currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+        if (fs.existsSync(FILE_PATH)) {
+            currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+        }
     } catch (e) {
         currentData = {};
     }
@@ -64,9 +37,11 @@ async function crawlAndSaveToJSON() {
                 }));
 
                 const oldList = currentData[key] || [];
-                const mergedList = [...oldList, ...fetchedVideos];
+                // Nếu danh sách cũ chỉ có 1 video tượng trưng của fallback cũ, xóa nó đi để lấy hoàn toàn 100% video thật
+                const cleanOldList = oldList.filter(v => !v.video_id.toString().includes('fallback') && !v.video_id.toString().includes('init'));
                 
-                // 🔥 SỬA LỖI CHÍ MẠNG TẠI ĐÂY: Cấp ID thông minh, không lo bị đè bẹp dí còn 1 video
+                const mergedList = [...cleanOldList, ...fetchedVideos];
+                
                 const uniqueMap = new Map();
                 mergedList.forEach((video, index) => {
                     const idToSave = video.video_id || `${key}_auto_${index}_${Math.random().toString(36).substr(2, 5)}`;
@@ -77,8 +52,9 @@ async function crawlAndSaveToJSON() {
                 currentData[key] = Array.from(uniqueMap.values());
                 console.log(`✅ Mục [${key}] cào thành công! Kho đang tích lũy thực tế: ${currentData[key].length} video.`);
             } else {
-                // Nếu API lỗi/trống, nạp dữ liệu cứu nguy bọc lót khẩn cấp
-                if (!currentData[key] || currentData[key].length === 0) {
+                // 🔥 ĐÃ SỬA: Nếu kho cũ có ít hơn hoặc bằng 1 video, ép buộc xả kho cứu nguy đầy đủ vào luôn chứ không giữ lại cái bị kẹt nữa
+                if (!currentData[key] || currentData[key].length <= 1) {
+                    console.log(`⚠️ Kho mục [${key}] bị thiếu hụt dữ liệu. Đang nạp kho cứu nguy đầy đủ...`);
                     currentData[key] = fallbackDatabase[key].map((v, i) => ({
                         ...v,
                         video_id: v.video_id || `${key}_fb_${i}_${Math.random().toString(36).substr(2, 3)}`
@@ -86,8 +62,9 @@ async function crawlAndSaveToJSON() {
                 }
             }
         } catch (err) {
-            console.error(`❌ Lỗi mục [${key}]: ${err.message}. Kích hoạt kho cứu nguy.`);
-            if (!currentData[key] || currentData[key].length === 0) {
+            console.error(`❌ Lỗi mục [${key}]: ${err.message}. Kiểm tra kho dữ liệu...`);
+            // Nếu dính lỗi mạng/chặn mà kho đang trống hoặc chỉ có 1 video kẹt, bung ngay kho cứu nguy đầy đủ
+            if (!currentData[key] || currentData[key].length <= 1) {
                 currentData[key] = fallbackDatabase[key].map((v, i) => ({
                     ...v,
                     video_id: v.video_id || `${key}_fberr_${i}_${Math.random().toString(36).substr(2, 3)}`
@@ -96,44 +73,5 @@ async function crawlAndSaveToJSON() {
         }
     }
     fs.writeFileSync(FILE_PATH, JSON.stringify(currentData, null, 2));
-    console.log("💾 [THÀNH CÔNG] Đã ghi toàn bộ video sạch sẽ vào file JSON!");
+    console.log("💾 [THÀNH CÔNG] Đã làm sạch và cập nhật file JSON!");
 }
-
-// Bật server lên là tự động cào đợt đầu luôn
-crawlAndSaveToJSON();
-
-// API chính trả dữ liệu về cho Android Studio
-app.get('/api/category', (req, res) => {
-    const categoryKey = req.query.name || "hai_huoc";
-    const count = parseInt(req.query.count) || 35; 
-
-    try {
-        let currentData = {};
-        if (fs.existsSync(FILE_PATH)) {
-            currentData = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
-        } else {
-            currentData = {};
-        }
-
-        let allVideos = currentData[categoryKey] || [];
-        
-        // Nếu bộ nhớ trống rỗng, lấy dữ liệu cứu nguy ngay lập tức
-        if (allVideos.length === 0) {
-            allVideos = fallbackDatabase[categoryKey] || [];
-        }
-
-        // Thuật toán xáo trộn ngẫu nhiên để nội dung trên TV luôn mới mẻ
-        const shuffledVideos = [...allVideos].sort(() => 0.5 - Math.random());
-        return res.json({ code: 0, msg: "success", data: shuffledVideos.slice(0, count) });
-    } catch (e) {
-        return res.status(500).json({ code: -1, msg: e.message, data: [] });
-    }
-});
-
-// Nút kích hoạt cào thêm bằng tay
-app.get('/api/crawl-more', async (req, res) => {
-    await crawlAndSaveToJSON();
-    res.send("Đã chạy lệnh cào nâng cấp chống chặn 403 rồi nhé ông giáo!");
-});
-
-app.listen(PORT, () => console.log(`🚀 Server chạy mượt mà tại cổng ${PORT}`));
