@@ -16,7 +16,8 @@ const keywordsDatabase = {
         "Threads Việt Nam",
         "TikTok Việt Nam",
         "xuhuong",
-        "biketok"
+        "biketok",
+        "xh"
     ],
     // Nhóm 2: Ẩm thực & Vlog đời sống
     am_thuc_vlog: [
