@@ -13,7 +13,7 @@ const keywordsDatabase = {
         "review phim ngan tom tat hai huoc",
         "slang gen z hai huoc",
         "flexing gen z viet nam",
-        "Threads Việt Nam"
+        "Threads Việt Nam",
         "TikTok Việt Nam",
         "xuhuong",
         "biketok"
