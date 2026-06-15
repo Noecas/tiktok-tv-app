@@ -51,7 +51,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
-// 🌟 THUẬT TOÁN ĐẢO MẢNG KHỦNG: Trộn từa lưa, đều bét nhè không lo bị dính cụm từ khóa giống nhau
+// THUẬT TOÁN ĐẢO MẢNG KHỦNG: Trộn từa lưa, đều bét nhè không lo bị dính cụm từ khóa giống nhau
 function shuffle(array) {
     if (!Array.isArray(array)) return array;
     for (let i = array.length - 1; i > 0; i--) {
@@ -171,11 +171,11 @@ async function crawlAndSaveToJSON() {
     // Chuyển về mảng dữ liệu sạch độc nhất
     let finalResult = Array.from(uniqueMap.values());
     
-    // 🌟 ĐÃ THÊM: Trộn từa lưa danh sách tổng ngay sau khi vừa thu thập về trước khi nén vào file json
-    finalResult = shuffle(finalResult).slice(-200);
+    // 🌟 ĐÃ MỞ RỘNG: Trộn bét nhè và nâng giới hạn lưu trữ lên hẳn 1500 video (Ông thích 2000 thì sửa số 1500 thành 2000 là được)
+    finalResult = shuffle(finalResult).slice(-1500);
 
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
-    console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang có: ${finalResult.length} video sạch (Đã trộn nát).`);
+    console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang chứa bét nhè: ${finalResult.length} video sạch (Đã trộn nát).`);
 }
 
 // Chạy tự động cào dữ liệu khi vừa khởi động server
@@ -209,10 +209,9 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         const uniqueMap = new Map();
         mergedResult.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
         
-        // Lấy list playlist tổng
         let finalPlayList = Array.from(uniqueMap.values());
 
-        // 🌟 ĐÃ SỬA: Thay thuật toán cũ bằng hàm shuffle() thuật toán xịn, trộn lộn xộn ngẫu nhiên tuyệt đối!
+        // Trộn lộn xộn ngẫu nhiên tuyệt đối trước khi trả về App TV
         finalPlayList = shuffle(finalPlayList);
         
         return res.json(finalPlayList.slice(0, count));
@@ -256,7 +255,6 @@ app.get('/api/video/search', async (req, res) => {
                 };
             }).filter(v => v !== null);
 
-            // 🌟 ĐÃ SỬA: Trộn bét nhè cả kết quả tìm kiếm live cho đã mắt
             fetched = shuffle(fetched);
             return res.json(fetched);
         }
