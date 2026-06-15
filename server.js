@@ -7,16 +7,15 @@ const path = require('path');
 // 🌟 PHÂN CHIA CHÍNH XÁC 30 TỪ KHÓA CỦA ÔNG GIÁO VÀO CÁC NHÓM ĐỂ THIẾT LẬP HẠN NGẠCH 🌟
 // =======================================================================================
 const keywordsDatabase = {
-    // Nhóm 1: Hài hước, Meme, Giải trí (🔥 ƯU TIÊN CAO NHẤT - Giữ chân người xem cực tốt)
+    // Nhóm 1: Hài hước, Meme, Giải trí (🔥 ƯU TIÊN CAO NHẤT)
     hai_huoc_meme: [
         "funny meme viet nam giải trí",
         "review phim ngan tom tat hai huoc",
         "slang gen z hai huoc",
         "flexing gen z viet nam",
-        "Threads Việt Nam",
-        "Trend Việt Nam"
+        "Threads Việt Nam"
     ],
-    // Nhóm 2: Ẩm thực & Vlog đời sống (✨ Xem cuốn, nhẹ nhàng, giải trí lành mạnh)
+    // Nhóm 2: Ẩm thực & Vlog đời sống
     am_thuc_vlog: [
         "review do an hot trend genz",
         "mukbang do an sieu ngon",
@@ -24,7 +23,7 @@ const keywordsDatabase = {
         "goc khuat cuoc song tam trang",
         "podcast chữa lành tâm trạng gen z"
     ],
-    // Nhóm 3: Audio truyện, Kịch truyền thanh (🔓 ĐÃ THẢ XÍCH THEO YÊU CẦU - Nghe drama cuốn)
+    // Nhóm 3: Audio truyện, Kịch truyền thanh (🔓 ĐÃ THẢ XÍCH THEO YÊU CẦU - 12 clip)
     audio_truyen: [
         "Audio Việt Nam",
         "Audio Tổng Tài",
@@ -35,10 +34,9 @@ const keywordsDatabase = {
         "ootd phoi do thoi trang genz",
         "Trai đẹp Việt Nam",
         "Trai đẹp Trung Quốc",
-        "Trai đẹp Hàn Quốc",
-         "hate that i made you love me VN"
+        "Trai đẹp Hàn Quốc"
     ],
-    // Nhóm 5: Nhạc Remix, Gái nhảy, Biến hình (🚨 BÓP MẠNH - Tránh bị ngấy và già nội dung)
+    // Nhóm 5: Nhạc Remix, Gái nhảy, Biến hình (🚨 BÓP MẠNH)
     nhac_giat_giat: [
         "trend bien hinh tiktok viet nam",
         "remix giat giat cuon",
@@ -48,9 +46,10 @@ const keywordsDatabase = {
         "trend nhảy tiktok hot",
         "nhạc căng đét tiktok",
         "gái xinh nhảy edm hot",
-        "vũ điệu cuốn hút tiktok"
+        "vũ điệu cuốn hút tiktok",
+        "hate that i made you love me VN"
     ],
-    // Nhóm 6: Từ khóa chung chung (🚨 BÓP NGOÀI - Ít giá trị nội dung)
+    // Nhóm 6: Từ khóa chung chung (🚨 BÓP NGOÀI)
     generic_xuhuong: [
         "trend tiktok hien tai ",
         "TikTok Việt Nam",
@@ -62,15 +61,15 @@ const keywordsDatabase = {
 // 🎯 BẢNG HẠN NGẠCH (QUOTA) ĐÃ ĐIỀU CHỈNH - HÀI NHIỀU, AUDIO ĐỦ NGHE, GIẬT GIẬT BỚT LẠI
 // =======================================================================================
 const categoryLimits = {
-    hai_huoc_meme: 25,       // Thả cửa 25 clip/từ khóa
-    am_thuc_vlog: 15,        // Cho cào tương đối nhiều
-    audio_truyen: 12,        // 🔓 ĐÃ NÂNG LÊN 12 CLIP: Tha hồ nghe tổng tài bá đạo
-    thoi_trang_trai_dep: 8,  // Đủ ngắm bổ mắt
-    nhac_giat_giat: 4,       // Chỉ lấy lọc lựa 4 clip hot nhất
-    generic_xuhuong: 2       // Kịch sàn 2 clip để chống rác kho
+    hai_huoc_meme: 25,       
+    am_thuc_vlog: 15,        
+    audio_truyen: 12,        // Nghe tổng tài mệt nghỉ
+    thoi_trang_trai_dep: 8,  
+    nhac_giat_giat: 4,       
+    generic_xuhuong: 2       
 };
 
-const app = express(); // 🛠️ ĐÃ FIX CHỖ NÀY: Không còn biến ma reportStats nữa!
+const app = express(); 
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
@@ -125,7 +124,6 @@ async function crawlAndSaveToJSON() {
     let selectedKeywords = [];
     for (const category in keywordsDatabase) {
         const shuffledCatKeywords = shuffle([...keywordsDatabase[category]]);
-        // Mỗi danh mục bốc ngẫu nhiên 3 từ khóa xoay tua
         const picked = shuffledCatKeywords.slice(0, 3).map(kw => ({
             text: kw,
             category: category
@@ -153,7 +151,8 @@ async function crawlAndSaveToJSON() {
                 await new Promise(resolve => setTimeout(resolve, 1500)); 
                 console.log(`⏳ Quét nhóm [${category.toUpperCase()}] - Từ khóa: "${keyword}" (Max cho phép: ${maxLimitForThisKeyword})`);
                 
-                const targetUrl = `https://api.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}`;
+                // 🛠️ ĐÃ FIX ĐƯỜNG LINK: Đổi từ api.tikwm.com sang www.tikwm.com
+                const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}`;
                 
                 const response = await axios.get(targetUrl, { 
                     timeout: 10000,
@@ -267,14 +266,15 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     }
 });
 
-// API TÌM KIẾM ĐỘNG THEO TỪ KHÓA BẤT KỲ
+// API TÌM KIẾM ĐỘNG
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 50; 
     if (!keyword) return res.json([]);
     try {
         const randomCursor = Math.floor(Math.random() * 3) * 10; 
-        const targetUrl = `https://api.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword.trim())}&count=${count}&cursor=${randomCursor}`;
+        // 🛠️ ĐÃ FIX ĐƯỜNG LINK Ở ĐÂY LUÔN
+        const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword.trim())}&count=${count}&cursor=${randomCursor}`;
         const response = await axios.get(targetUrl, { timeout: 12000 });
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
             let fetched = response.data.data.videos.map(v => {
@@ -292,7 +292,8 @@ app.get('/api/comment/list', async (req, res) => {
     const videoId = req.query.video_id;
     if (!videoId) return res.json({ code: -1, msg: "Thiếu tham số video_id!" });
     try {
-        const response = await axios.get(`https://api.tikwm.com/api/comment/list?video_id=${videoId}&count=30`);
+        // 🛠️ ĐÃ FIX ĐƯỜNG LINK LẤY CMT
+        const response = await axios.get(`https://www.tikwm.com/api/comment/list?video_id=${videoId}&count=30`);
         return res.json(response.data);
     } catch (err) { return res.json({ code: -1, msg: err.message }); }
 });
@@ -302,7 +303,6 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Hệ thống bot vừa thực hiện quét kho video mới xong!", thong_ke_chi_tiet: reportStats });
 });
 
-// Hẹn giờ tự cào lại chống cạn kho dữ liệu (45 phút một lần)
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) { console.log("⚠️ Lỗi cập nhật tự động:", err.message); }
 }, 45 * 60 * 1000);
