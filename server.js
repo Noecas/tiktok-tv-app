@@ -65,7 +65,7 @@ app.get('/', (req, res) => {
     res.send("🚀 Server TikTok TV App đang hoạt động - Chế độ: KHO VIDEO TREND GEN Z & EDM VIỆT NAM!");
 });
 
-// 🔥 HÀM KIỂM TRA CHẶN VIDEO NƯỚC NGOÀI (Chặn chữ Trung, Hàn, Nhật và các clip không có chữ Việt)
+// 🔥 HÀM KIỂM TRA CHẶN VIDEO NƯỚC NGOÀI
 function isVietnameseContent(title) {
     if (!title) return false;
 
@@ -111,56 +111,59 @@ async function crawlAndSaveToJSON() {
         return;
     }
 
-    // Chọn TOÀN BỘ từ khóa và đảo vị trí quét ban đầu
     const selectedKeywords = shuffle([...flatKeywords]);
-
     console.log(`📡 [HỆ THỐNG] Đang chuẩn bị quét tổng cộng ${selectedKeywords.length} từ khóa...`);
 
     for (const keyword of selectedKeywords) {
-        try {
-            // Nghỉ 1.5 giây chống chặn IP
-            await new Promise(resolve => setTimeout(resolve, 1500));
+        // 🌟 ĐÃ SỬA: Mỗi từ khóa bốc hẳn 2 trang cursor ngẫu nhiên khác nhau để gom được nhiều clip hơn gấp đôi
+        const pageCursors = [
+            Math.floor(Math.random() * 4) * 10,       // Trang từ 0 -> 30
+            Math.floor(Math.random() * 4 + 4) * 10   // Trang từ 40 -> 70
+        ];
 
-            const randomCursor = Math.floor(Math.random() * 8) * 10; 
-            console.log(`⏳ Đang quét trend: "${keyword}" | Trang: ${randomCursor}`);
-            
-            const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}`;
-            
-            const response = await axios.get(targetUrl, { 
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-                }
-            });
+        for (const randomCursor of pageCursors) {
+            try {
+                // Nghỉ ngắn chống chặn IP
+                await new Promise(resolve => setTimeout(resolve, 1200));
 
-            if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
-                let validCount = 0;
-                let skipCount = 0;
-
-                const fetched = response.data.data.videos.map(v => {
-                    const titleText = v.title || "";
-                    if (!isVietnameseContent(titleText)) {
-                        skipCount++;
-                        return null; 
+                console.log(`⏳ Đang quét trend: "${keyword}" | Trang: ${randomCursor}`);
+                const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}`;
+                
+                const response = await axios.get(targetUrl, { 
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
                     }
+                });
 
-                    validCount++;
-                    return {
-                        videoId: v.video_id,
-                        videoUrl: v.play,
-                        title: titleText,
-                        cover: v.cover,
-                        views: v.play_count || 0,
-                        author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
-                        originUrl: v.play
-                    };
-                }).filter(v => v !== null);
+                if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
+                    let validCount = 0;
+                    let skipCount = 0;
 
-                console.log(`    👉 Kết quả lọc từ khóa [${keyword}]: Nhận ${validCount} clip Việt Nam | Loại bỏ ${skipCount} clip nước ngoài.`);
-                currentVideos = [...currentVideos, ...fetched];
+                    const fetched = response.data.data.videos.map(v => {
+                        const titleText = v.title || "";
+                        if (!isVietnameseContent(titleText)) {
+                            skipCount++;
+                            return null; 
+                        }
+
+                        validCount++;
+                        return {
+                            videoId: v.video_id,
+                            videoUrl: v.play,
+                            title: titleText,
+                            cover: v.cover,
+                            views: v.play_count || 0,
+                            author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
+                            originUrl: v.play
+                        };
+                    }).filter(v => v !== null);
+
+                    currentVideos = [...currentVideos, ...fetched];
+                }
+            } catch (err) {
+                console.log(`⚠️ Lỗi cào từ khóa [${keyword}] trang [${randomCursor}]: ${err.message}`);
             }
-        } catch (err) {
-            console.log(`⚠️ Lỗi cào từ khóa [${keyword}]: ${err.message}`);
         }
     }
 
@@ -168,14 +171,13 @@ async function crawlAndSaveToJSON() {
     const uniqueMap = new Map();
     currentVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
     
-    // Chuyển về mảng dữ liệu sạch độc nhất
     let finalResult = Array.from(uniqueMap.values());
     
-    // 🌟 ĐÃ MỞ RỘNG: Trộn bét nhè và nâng giới hạn lưu trữ lên hẳn 1500 video (Ông thích 2000 thì sửa số 1500 thành 2000 là được)
-    finalResult = shuffle(finalResult).slice(-1500);
+    // 🌟 ĐÃ MỞ RỘNG: Nới kho tổng lên tối đa 3000 video lưu trữ ngầm cho thoải mái
+    finalResult = shuffle(finalResult).slice(-3000);
 
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
-    console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang chứa bét nhè: ${finalResult.length} video sạch (Đã trộn nát).`);
+    console.log(`💾 [THÀNH CÔNG] Kho tổng đang tích lũy: ${finalResult.length} video sạch.`);
 }
 
 // Chạy tự động cào dữ liệu khi vừa khởi động server
@@ -183,7 +185,8 @@ crawlAndSaveToJSON();
 
 // 🔥 API TRẢ VỀ CHO APP TV (TRẢ THẲNG MẢNG - KHÔNG BỌC ĐỐI TƯỢNG)
 app.get(['/api/video', '/api/category'], (req, res) => {
-    const count = parseInt(req.query.count) || 45; 
+    // 🌟 ĐÃ SỬA: Tăng số lượng video trả về mặc định từ 45 lên hẳn 250 video để kéo dài thanh cuộn!
+    const count = parseInt(req.query.count) || 250; 
 
     try {
         let liveVideos = [];
@@ -223,7 +226,7 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 // 🔥 API TÌM KIẾM ĐỘNG THEO TỪ KHÓA BẤT KỲ
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
-    const count = parseInt(req.query.count) || 30;
+    const count = parseInt(req.query.count) || 50; // Tìm kiếm live cho ra 50 kết quả luôn
     
     if (!keyword) return res.json([]);
 
