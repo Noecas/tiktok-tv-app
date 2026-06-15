@@ -23,6 +23,7 @@ const keywordsDatabase = [
     "Audio Thiên Kim",
     "trend nhảy tiktok hot",
     "nhạc căng đét tiktok",
+    "Threads Việt Nam"
     "hate that i made you love me VN",
     "gái xinh nhảy edm hot",
     "vũ điệu cuốn hút tiktok",
