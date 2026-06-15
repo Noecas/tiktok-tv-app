@@ -27,23 +27,19 @@ const keywordsDatabase = [
     "Audio Việt Nam",
     "Audio Tổng Tài",
     "Audio Thiên Kim",
-
-    // --- 2. Nhóm từ khóa ông giáo mới yêu cầu bổ sung ---
     "trend nhảy tiktok hot",
     "nhạc căng đét tiktok",
+    " hate that i made you love me VN",
     "biến hình vịt hóa thiên nga",
     "gái xinh nhảy edm hot",
     "vũ điệu cuốn hút tiktok",
     "podcast chữa lành tâm trạng gen z",
-
-    // --- 3. Gợi ý thêm vài trend kéo tương tác cực tốt hiện tại ---
     "mukbang do an sieu ngon",
     "review phim ngan tom tat hai huoc",
     "funny meme viet nam giải trí",
     "ootd phoi do thoi trang genz",
     "vlog cuoc song hang ngay chill",
     "goc khuat cuoc song tam trang",
-    " hate that i made you love me VN",
     "TikTok Việt Nam",
     "Trai đẹp Việt Nam",
     "xuhuong"
