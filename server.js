@@ -12,7 +12,6 @@ const { fallbackDatabase } = require('./video');
 const keywordsDatabase = [
     // --- 1. Nhóm từ khóa cũ đang chạy ngon lành ---
     "trend bien hinh tiktok viet nam", 
-    "nhac edm remix hot tiktok", 
     "remix giat giat cuon", 
     "vinahouse remix tiktok hot",
     "mashup hot tiktok hien tai",
