@@ -23,8 +23,8 @@ const keywordsDatabase = [
     "flexing gen z viet nam", 
     "slang gen z hai huoc",
     "street style viet nam trend",
-    "Trai đẹp Trung Quốc"
-    "Trai đẹp Hàn Quốc"
+    "Trai đẹp Trung Quốc",
+    "Trai đẹp Hàn Quốc",
     "review do an hot trend genz",
     "Audio Việt Nam",
     "Audio Tổng Tài",
