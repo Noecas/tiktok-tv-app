@@ -46,15 +46,20 @@ const keywordsDatabase = [
     "Trai đẹp Việt Nam",
     "xuhuong"
 ];
-// =======================================================================================
-// 📌 Mẹo nhỏ: Muốn thêm từ khóa mới, ông cứ viết tiếp vào ngay phía TRÊN dòng "goc khuat cuoc song tam trang"
-// và nhớ thêm dấu phẩy ở cuối dòng đó là được!
-// =======================================================================================
-
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
+
+// 🌟 THUẬT TOÁN ĐẢO MẢNG KHỦNG: Trộn từa lưa, đều bét nhè không lo bị dính cụm từ khóa giống nhau
+function shuffle(array) {
+    if (!Array.isArray(array)) return array;
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
 
 app.get('/', (req, res) => {
     res.send("🚀 Server TikTok TV App đang hoạt động - Chế độ: KHO VIDEO TREND GEN Z & EDM VIỆT NAM!");
@@ -64,14 +69,12 @@ app.get('/', (req, res) => {
 function isVietnameseContent(title) {
     if (!title) return false;
 
-    // 1. Chặn các ký tự Trung Quốc, Nhật Bản, Hàn Quốc (Nhìn phát biết ngay clip reup nước ngoài)
+    // 1. Chặn các ký tự Trung Quốc, Nhật Bản, Hàn Quốc
     const foreignRegex = /[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\uac00-\ud7af]/;
     if (foreignRegex.test(title)) return false;
 
-    // 2. Kiểm tra xem tiêu đề có chứa dấu tiếng Việt hay không (để giữ lại clip thuần Việt)
+    // 2. Kiểm tra xem tiêu đề có chứa dấu tiếng Việt hay không
     const vnTones = /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i;
-    
-    // Nếu tiêu đề có chữ tiếng Việt HOẶC chứa các từ không dấu phổ biến thì cho qua
     const commonVnWords = /threads|tiktok|remix|hot|review|vlog|drama|vs|tv|idols|p1|p2|part|dance|mashup|edm|flex/i;
     
     if (vnTones.test(title) || commonVnWords.test(title)) {
@@ -108,12 +111,17 @@ async function crawlAndSaveToJSON() {
         return;
     }
 
-    // Chọn ngẫu nhiên 5 từ khóa trend để quét mỗi lượt
-    const selectedKeywords = [...flatKeywords].sort(() => 0.5 - Math.random()).slice(0, 5);
+    // Chọn TOÀN BỘ từ khóa và đảo vị trí quét ban đầu
+    const selectedKeywords = shuffle([...flatKeywords]);
+
+    console.log(`📡 [HỆ THỐNG] Đang chuẩn bị quét tổng cộng ${selectedKeywords.length} từ khóa...`);
 
     for (const keyword of selectedKeywords) {
         try {
-            const randomCursor = Math.floor(Math.random() * 8) * 10; // Quét sâu từ trang 0 đến trang 70
+            // Nghỉ 1.5 giây chống chặn IP
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            const randomCursor = Math.floor(Math.random() * 8) * 10; 
             console.log(`⏳ Đang quét trend: "${keyword}" | Trang: ${randomCursor}`);
             
             const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}`;
@@ -131,15 +139,12 @@ async function crawlAndSaveToJSON() {
 
                 const fetched = response.data.data.videos.map(v => {
                     const titleText = v.title || "";
-                    
-                    // 🔥 BỘ LỌC: Chỉ giữ lại video có nội dung Tiếng Việt/Trend Việt
                     if (!isVietnameseContent(titleText)) {
                         skipCount++;
                         return null; 
                     }
 
                     validCount++;
-                    // 🌟 SỬA ĐỔI CHUẨN: Đổi key sang camelCase để khớp hoàn toàn với cấu trúc Android TV
                     return {
                         videoId: v.video_id,
                         videoUrl: v.play,
@@ -149,7 +154,7 @@ async function crawlAndSaveToJSON() {
                         author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
                         originUrl: v.play
                     };
-                }).filter(v => v !== null); // Loại bỏ những video nước ngoài bị đánh dấu null
+                }).filter(v => v !== null);
 
                 console.log(`    👉 Kết quả lọc từ khóa [${keyword}]: Nhận ${validCount} clip Việt Nam | Loại bỏ ${skipCount} clip nước ngoài.`);
                 currentVideos = [...currentVideos, ...fetched];
@@ -159,14 +164,18 @@ async function crawlAndSaveToJSON() {
         }
     }
 
-    // Lọc trùng theo thuộc tính videoId mới
+    // Lọc trùng theo videoId
     const uniqueMap = new Map();
     currentVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
     
-    // Nới rộng kho chứa lên 200 video Việt Nam xem cho đã đời
-    const finalResult = Array.from(uniqueMap.values()).slice(-200);
+    // Chuyển về mảng dữ liệu sạch độc nhất
+    let finalResult = Array.from(uniqueMap.values());
+    
+    // 🌟 ĐÃ THÊM: Trộn từa lưa danh sách tổng ngay sau khi vừa thu thập về trước khi nén vào file json
+    finalResult = shuffle(finalResult).slice(-200);
+
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
-    console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang có: ${finalResult.length} video sạch.`);
+    console.log(`💾 [THÀNH CÔNG] Kho tổng Việt Nam đang có: ${finalResult.length} video sạch (Đã trộn nát).`);
 }
 
 // Chạy tự động cào dữ liệu khi vừa khởi động server
@@ -185,7 +194,6 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 
         let flatFallback = Array.isArray(fallbackDatabase) ? fallbackDatabase : Object.values(fallbackDatabase).flat();
         
-        // Chuẩn hóa luôn dữ liệu fallback nếu có gọi tới
         const normalizedFallback = flatFallback.map(v => ({
             videoId: v.video_id || v.videoId,
             videoUrl: v.play || v.videoUrl,
@@ -200,19 +208,20 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 
         const uniqueMap = new Map();
         mergedResult.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
-        const finalPlayList = Array.from(uniqueMap.values());
-
-        // Xáo trộn ngẫu nhiên toàn bộ mảng (Vui, Buồn, Nhạc quẩy xen kẽ thất thường cực cuốn)
-        const shuffledVideos = finalPlayList.sort(() => 0.5 - Math.random());
         
-        // Trả thẳng danh sách mảng JSON, chuẩn khít với List<RenderVideoResponse> trong Android
-        return res.json(shuffledVideos.slice(0, count));
+        // Lấy list playlist tổng
+        let finalPlayList = Array.from(uniqueMap.values());
+
+        // 🌟 ĐÃ SỬA: Thay thuật toán cũ bằng hàm shuffle() thuật toán xịn, trộn lộn xộn ngẫu nhiên tuyệt đối!
+        finalPlayList = shuffle(finalPlayList);
+        
+        return res.json(finalPlayList.slice(0, count));
     } catch (e) {
         return res.json([]);
     }
 });
 
-// 🔥 BỔ SUNG MỚI: API TÌM KIẾM ĐỘNG THEO TỪ KHÓA BẤT KỲ (Dành cho Search Bar trên TV App)
+// 🔥 API TÌM KIẾM ĐỘNG THEO TỪ KHÓA BẤT KỲ
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 30;
@@ -221,7 +230,7 @@ app.get('/api/video/search', async (req, res) => {
 
     try {
         console.log(`🔍 [LIVE SEARCH] Người dùng TV đang gõ tìm từ khóa: "${keyword}"`);
-        const randomCursor = Math.floor(Math.random() * 3) * 10; // Quét từ trang 0 đến trang 20 ngẫu nhiên
+        const randomCursor = Math.floor(Math.random() * 3) * 10; 
         const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=${count}&cursor=${randomCursor}`;
         
         const response = await axios.get(targetUrl, { 
@@ -232,7 +241,7 @@ app.get('/api/video/search', async (req, res) => {
         });
 
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
-            const fetched = response.data.data.videos.map(v => {
+            let fetched = response.data.data.videos.map(v => {
                 const titleText = v.title || "";
                 if (!isVietnameseContent(titleText)) return null; 
 
@@ -247,9 +256,9 @@ app.get('/api/video/search', async (req, res) => {
                 };
             }).filter(v => v !== null);
 
-            // Trộn bùm xum kết quả tìm kiếm live cho đúng gu ông giáo thích
-            const shuffledSearch = fetched.sort(() => 0.5 - Math.random());
-            return res.json(shuffledSearch);
+            // 🌟 ĐÃ SỬA: Trộn bét nhè cả kết quả tìm kiếm live cho đã mắt
+            fetched = shuffle(fetched);
+            return res.json(fetched);
         }
         return res.json([]);
     } catch (err) {
@@ -258,7 +267,7 @@ app.get('/api/video/search', async (req, res) => {
     }
 });
 
-// 🔥 API TRUNG CHUYỂN BÌNH LUẬN (MỚI THÊM CHO APP TV)
+// 🔥 API TRUNG CHUYỂN BÌNH LUẬN
 app.get('/api/comment/list', async (req, res) => {
     const videoId = req.query.video_id;
     if (!videoId) return res.json({ code: -1, msg: "Thiếu tham số video_id rồi ông giáo!" });
@@ -278,14 +287,12 @@ app.get('/api/comment/list', async (req, res) => {
     }
 });
 
-// Link kích hoạt bằng tay khi cần khẩn cấp
 app.get('/api/crawl-more', async (req, res) => {
     await crawlAndSaveToJSON();
     res.send("Đã cập nhật quét kho video Trend Việt Nam mới và dọn sạch clip nước ngoài!");
 });
 
-// ====== BỘ TỰ ĐỘNG LÀM MỚI KHO VIDEO (HẸN GIỜ CÀO NGẦM MỚI THÊM) ======
-// Cứ đúng 45 phút, server sẽ tự động kích hoạt chế độ cào để thay đổi kho video liên tục
+// Tự động cào định kỳ 45 phút
 setInterval(async () => {
     console.log("⏰ [HẸN GIỜ] Tự động kích hoạt bot quét bài mới chống cạn kho dữ liệu...");
     try {
@@ -293,6 +300,6 @@ setInterval(async () => {
     } catch (err) {
         console.log("⚠️ Lỗi cập nhật tự động định kỳ:", err.message);
     }
-}, 45 * 60 * 1000); // 45 phút tính bằng mili-giây
+}, 45 * 60 * 1000);
 
 app.listen(PORT, () => console.log(`🚀 Server Trend Việt chạy mượt mà tại cổng ${PORT}`));
