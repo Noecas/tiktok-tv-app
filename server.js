@@ -14,6 +14,9 @@ const keywordsDatabase = {
         "slang gen z hai huoc",
         "flexing gen z viet nam",
         "Threads Việt Nam"
+        "TikTok Việt Nam",
+        "xuhuong",
+        "biketok"
     ],
     // Nhóm 2: Ẩm thực & Vlog đời sống
     am_thuc_vlog: [
@@ -51,9 +54,7 @@ const keywordsDatabase = {
     ],
     // Nhóm 6: Từ khóa chung chung (🚨 BÓP NGOÀI)
     generic_xuhuong: [
-        "trend tiktok hien tai ",
-        "TikTok Việt Nam",
-        "xuhuong"
+        "trend tiktok hien tai "
     ]
 };
 
