@@ -13,6 +13,7 @@ const keywordsDatabase = {
         "lốp",
         "Threads Việt Nam",
         "TikTok Việt Nam",
+        "fyp",
         "xuhuong",
         "biketok",
         "xh",
@@ -25,7 +26,8 @@ const keywordsDatabase = {
         "mukbang do an sieu ngon",
         "vlog cuoc song hang ngay chill",
         "goc khuat cuoc song tam trang",
-        "podcast chữa lành tâm trạng "
+        "podcast chữa lành tâm trạng ",
+        "Chuỗi"
     ],
     // Nhóm 3: Audio truyện, Kịch truyền thanh (🔓 ĐÃ THẢ XÍCH THEO YÊU CẦU - 12 clip)
     audio_truyen: [
