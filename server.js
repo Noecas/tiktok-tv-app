@@ -9,19 +9,19 @@ const path = require('path');
 const keywordsDatabase = {
     // Nhóm 1: Hài hước, Meme, Giải trí (🔥 ƯU TIÊN CAO NHẤT)
     hai_huoc_meme: [
-        "funny meme viet nam giải trí",
-        "review phim ngan tom tat hai huoc",
+        "review phim",
         "lốp",
         "Threads Việt Nam",
         "TikTok Việt Nam",
         "xuhuong",
         "biketok",
         "xh",
-        "hate that i made you love me VN"
+        "hate that i made you love me VN",
+        "Capcut Giật Giật"
     ],
     // Nhóm 2: Ẩm thực & Vlog đời sống
     am_thuc_vlog: [
-        "review do an hot trend genz",
+        "review do an hot trend",
         "mukbang do an sieu ngon",
         "vlog cuoc song hang ngay chill",
         "goc khuat cuoc song tam trang",
@@ -62,8 +62,8 @@ const keywordsDatabase = {
 // =======================================================================================
 const categoryLimits = {
     hai_huoc_meme: 25,       
-    am_thuc_vlog: 15,        
-    audio_truyen: 12,        // Nghe tổng tài mệt nghỉ
+    am_thuc_vlog: 10,        
+    audio_truyen: 15,        // Nghe tổng tài mệt nghỉ
     thoi_trang_trai_dep: 8,  
     nhac_giat_giat: 4,       
     generic_xuhuong: 25       
