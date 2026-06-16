@@ -11,13 +11,12 @@ const keywordsDatabase = {
     hai_huoc_meme: [
         "funny meme viet nam giải trí",
         "review phim ngan tom tat hai huoc",
-        "slang gen z hai huoc",
-        "flexing gen z viet nam",
         "Threads Việt Nam",
         "TikTok Việt Nam",
         "xuhuong",
         "biketok",
-        "xh"
+        "xh",
+        "hate that i made you love me VN"
     ],
     // Nhóm 2: Ẩm thực & Vlog đời sống
     am_thuc_vlog: [
@@ -25,7 +24,7 @@ const keywordsDatabase = {
         "mukbang do an sieu ngon",
         "vlog cuoc song hang ngay chill",
         "goc khuat cuoc song tam trang",
-        "podcast chữa lành tâm trạng gen z"
+        "podcast chữa lành tâm trạng "
     ],
     // Nhóm 3: Audio truyện, Kịch truyền thanh (🔓 ĐÃ THẢ XÍCH THEO YÊU CẦU - 12 clip)
     audio_truyen: [
@@ -50,12 +49,11 @@ const keywordsDatabase = {
         "trend nhảy tiktok hot",
         "nhạc căng đét tiktok",
         "gái xinh nhảy edm hot",
-        "vũ điệu cuốn hút tiktok",
-        "hate that i made you love me VN"
+        "vũ điệu cuốn hút tiktok"
     ],
     // Nhóm 6: Từ khóa chung chung (🚨 BÓP NGOÀI)
     generic_xuhuong: [
-        "trend tiktok hien tai "
+        "trend tiktok hien tai"
     ]
 };
 
