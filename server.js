@@ -33,7 +33,8 @@ const keywordsDatabase = {
     audio_truyen: [
         "Audio Việt Nam",
         "Audio Tổng Tài",
-        "Audio Thiên Kim"
+        "Audio Thiên Kim",
+        "120fps video"
     ],
     // Nhóm 4: Thời trang & Trai đẹp (Vừa đủ ngắm)
     thoi_trang_trai_dep: [
