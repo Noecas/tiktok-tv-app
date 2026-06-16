@@ -11,6 +11,7 @@ const keywordsDatabase = {
     hai_huoc_meme: [
         "funny meme viet nam giải trí",
         "review phim ngan tom tat hai huoc",
+        "lốp",
         "Threads Việt Nam",
         "TikTok Việt Nam",
         "xuhuong",
@@ -34,7 +35,6 @@ const keywordsDatabase = {
     ],
     // Nhóm 4: Thời trang & Trai đẹp (Vừa đủ ngắm)
     thoi_trang_trai_dep: [
-        "ootd phoi do thoi trang genz",
         "Trai đẹp Việt Nam",
         "Trai đẹp Trung Quốc",
         "Trai đẹp Hàn Quốc"
