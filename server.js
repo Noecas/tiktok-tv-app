@@ -53,7 +53,7 @@ const keywordsDatabase = {
     ],
     // Nhóm 6: Từ khóa chung chung (🚨 BÓP NGOÀI)
     generic_xuhuong: [
-        "trend tiktok hien tai"
+        "Trend TikTok hiện tại"
     ]
 };
 
@@ -66,7 +66,7 @@ const categoryLimits = {
     audio_truyen: 12,        // Nghe tổng tài mệt nghỉ
     thoi_trang_trai_dep: 8,  
     nhac_giat_giat: 4,       
-    generic_xuhuong: 2       
+    generic_xuhuong: 25       
 };
 
 const app = express(); 
