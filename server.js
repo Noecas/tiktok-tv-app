@@ -36,12 +36,12 @@ const keywordsDatabase = {
 };
 
 const categoryLimits = {
-    hai_huoc_meme: 60,       
-    am_thuc_vlog: 15,        
-    audio_truyen: 20,       
-    thoi_trang_trai_dep: 10,  
-    nhac_giat_giat: 5,       
-    generic_xuhuong: 30       
+    hai_huoc_meme: 80,       // Tăng thêm quota để tích được kho nhiều hơn
+    am_thuc_vlog: 30,        
+    audio_truyen: 40,       
+    thoi_trang_trai_dep: 20,  
+    nhac_giat_giat: 15,       
+    generic_xuhuong: 50       
 };
 
 const app = express(); 
@@ -58,7 +58,7 @@ function shuffle(array) {
 }
 
 app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào trên Render!");
+    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào với kho dữ liệu lớn!");
 });
 
 function isVietnameseContent(title) {
@@ -76,7 +76,7 @@ function isVietnameseContent(title) {
 }
 
 async function crawlAndSaveToJSON() {
-    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu kiểm soát hạn ngạch...");
+    console.log("🔄 [HỆ THỐNG] Bắt đầu tiến trình cào dữ liệu tích lũy kho lớn...");
     let oldVideos = [];
     let totalFetchedFromAPI = 0;
     let totalValidVN = 0;
@@ -92,7 +92,7 @@ async function crawlAndSaveToJSON() {
     let selectedKeywords = [];
     for (const category in keywordsDatabase) {
         const shuffledCatKeywords = shuffle([...keywordsDatabase[category]]);
-        const picked = shuffledCatKeywords.slice(0, 3).map(kw => ({ text: kw, category: category }));
+        const picked = shuffledCatKeywords.slice(0, 4).map(kw => ({ text: kw, category: category }));
         selectedKeywords = [...selectedKeywords, ...picked];
     }
     
@@ -102,14 +102,14 @@ async function crawlAndSaveToJSON() {
     for (const item of selectedKeywords) {
         const keyword = item.text.trim();
         const category = item.category;
-        const maxLimitForThisKeyword = categoryLimits[category] || 15; 
+        const maxLimitForThisKeyword = categoryLimits[category] || 30; 
 
         let keywordVideosFetched = []; 
         
-        // 🔥 SỬA ĐỔI 1: Nới rộng độ sâu nhảy trang (Cursor từ 0 đến 150) để lấy được video độc lạ, không bị trùng bài cũ
+        // Tăng độ sâu nhảy trang ngẫu nhiên để săn được nhiều video độc lạ
         const pageCursors = [
-            Math.floor(Math.random() * 8) * 10, 
-            Math.floor(Math.random() * 8 + 8) * 10
+            Math.floor(Math.random() * 10) * 10, 
+            Math.floor(Math.random() * 10 + 10) * 10
         ];
 
         for (const randomCursor of pageCursors) {
@@ -117,8 +117,6 @@ async function crawlAndSaveToJSON() {
 
             try {
                 await new Promise(resolve => setTimeout(resolve, 1200)); 
-                
-                // Thêm tham số ngẫu nhiên chặn cache API
                 const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}&_r=${Math.random()}`;
                 
                 const response = await axios.get(targetUrl, { 
@@ -168,8 +166,8 @@ async function crawlAndSaveToJSON() {
     let finalResult = Array.from(uniqueMap.values());
     if (finalResult.length === 0) return { status: "Kho rỗng" };
     
-    // Giới hạn kho lưu tối đa 2000 bài để chạy cho mượt
-    finalResult = shuffle(finalResult).slice(-2000);
+    // 🔥 CHIẾN THUẬT: Nâng trần bộ nhớ từ 2000 lên hẳn 5000 bài để tha hồ bốc 250 bài không sợ trùng mặt cũ
+    finalResult = shuffle(finalResult).slice(-5000);
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
 
     return { status: "Thành công!", totalInDatabase: finalResult.length };
@@ -177,10 +175,10 @@ async function crawlAndSaveToJSON() {
 
 crawlAndSaveToJSON();
 
-// 📺 API TRẢ VỀ CHO APP TV (ĐÃ ĐƯỢC FIX LỖI LẶP LẠI)
+// 📺 API TRẢ VỀ CHO APP TV (ĐÃ TRẢ LẠI SỐ LƯỢNG LỚN CHO ÔNG GIÁO)
 app.get(['/api/video', '/api/category'], (req, res) => {
-    // 🔥 SỬA ĐỔI 2: Hạ số lượng mặc định từ 250 xuống 40 clip để tăng độ phân phối ngẫu nhiên
-    const count = parseInt(req.query.count) || 40; 
+    // 🔥 ĐÃ HOÀN NGUYÊN: Mặc định lấy đúng 250 bài như code cũ của ông giáo
+    const count = parseInt(req.query.count) || 250; 
     
     try {
         let liveVideos = [];
@@ -192,17 +190,17 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         liveVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
         let finalPlayList = Array.from(uniqueMap.values());
 
-        // 🔥 SỬA ĐỔI 3: Cơ chế loại trừ video đã xem dựa theo tham số ?exclude=id1,id2 từ App gửi lên
+        // Lọc loại trừ video đã xem nếu App có truyền lên danh sách loại trừ
         const excludeParam = req.query.exclude;
         if (excludeParam) {
             const excludedIds = excludeParam.split(',');
             finalPlayList = finalPlayList.filter(v => !excludedIds.includes(v.videoId));
         }
 
-        // Xáo trộn mạnh danh sách còn lại
+        // Xáo trộn mạnh danh sách tổng trước khi bốc hàng
         finalPlayList = shuffle(finalPlayList);
         
-        // Trả về đúng số lượng yêu cầu
+        // Trả về đúng cụm lớn 250 bài cho app ôm về load một thể
         return res.json(finalPlayList.slice(0, count));
     } catch (e) { return res.json([]); }
 });
@@ -210,10 +208,10 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 // API TÌM KIẾM ĐỘNG
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
-    const count = parseInt(req.query.count) || 40; 
+    const count = parseInt(req.query.count) || 250; // Trả lại số lượng lớn cho tìm kiếm luôn
     if (!keyword) return res.json([]);
     try {
-        const randomCursor = Math.floor(Math.random() * 6) * 10; 
+        const randomCursor = Math.floor(Math.random() * 8) * 10; 
         const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword.trim())}&count=${count}&cursor=${randomCursor}`;
         const response = await axios.get(targetUrl, { timeout: 12000 });
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
@@ -251,7 +249,7 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Hệ thống bot vừa thực hiện quét kho video mới xong!", thong_ke_chi_tiet: reportStats });
 });
 
-// Chạy cào tự động định kỳ mỗi 45 phút
+// Chạy cào tự động định kỳ mỗi 45 phút để nạp đầy kho 5000 bài
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) { console.log("⚠️ Lỗi cập nhật tự động:", err.message); }
 }, 45 * 60 * 1000);
