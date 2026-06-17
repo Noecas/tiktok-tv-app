@@ -177,6 +177,8 @@ async function crawlAndSaveToJSON() {
                         }
 
                         totalValidVN++; 
+                        
+                        // ✨ ĐÃ BỔ SUNG: Bốc thêm Avatar và Nickname tác giả khi cào
                         return {
                             videoId: v.video_id,
                             videoUrl: v.play,
@@ -184,6 +186,8 @@ async function crawlAndSaveToJSON() {
                             cover: v.cover,
                             views: v.play_count || 0,
                             author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
+                            authorName: v.author?.nickname || "Người dùng Tóp Tóp",
+                            avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
                             originUrl: v.play
                         };
                     }).filter(v => v !== null);
@@ -281,7 +285,19 @@ app.get('/api/video/search', async (req, res) => {
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
             let fetched = response.data.data.videos.map(v => {
                 if (!isVietnameseContent(v.title || "")) return null; 
-                return { videoId: v.video_id, videoUrl: v.play, title: v.title, cover: v.cover, views: v.play_count || 0, author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", originUrl: v.play };
+                
+                // ✨ ĐÃ BỔ SUNG: Đồng bộ cấu trúc bốc Avatar và Nickname sang API tìm kiếm động luôn
+                return { 
+                    videoId: v.video_id, 
+                    videoUrl: v.play, 
+                    title: v.title, 
+                    cover: v.cover, 
+                    views: v.play_count || 0, 
+                    author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", 
+                    authorName: v.author?.nickname || "Người dùng Tóp Tóp",
+                    avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
+                    originUrl: v.play 
+                };
             }).filter(v => v !== null);
             return res.json(shuffle(fetched));
         }
@@ -289,7 +305,7 @@ app.get('/api/video/search', async (req, res) => {
     } catch (err) { return res.json([]); }
 });
 
-// API LẤY BÌNH LUẬN
+// API LẤY BÌNH LUẬN (Mặc định giữ nguyên cục gốc của TikWM vì đã có sẵn Avatar người bình luận bên trong rồi)
 app.get('/api/comment/list', async (req, res) => {
     const videoId = req.query.video_id;
     if (!videoId) return res.json({ code: -1, msg: "Thiếu tham số video_id!" });
