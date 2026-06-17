@@ -17,7 +17,7 @@ const keywordsDatabase = {
         "xuhuong",
         "biketok",
         "xh",
-        "hate that i made you love me VN",
+        "hate that i made you love me",
         "Capcut Giật Giật"
     ],
     // Nhóm 2: Ẩm thực & Vlog đời sống
