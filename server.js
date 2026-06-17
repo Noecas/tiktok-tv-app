@@ -44,6 +44,8 @@ const keywordsDatabase = {
     // Nhóm 5: Nhạc Remix, Gái nhảy, Biến hình (🚨 BÓP MẠNH)
     nhac_giat_giat: [
         "trend bien hinh tiktok viet nam",
+        "funk",
+        "phonk",
         "remix giat giat cuon",
         "vinahouse remix tiktok hot",
         "mashup hot tiktok hien tai",
