@@ -36,7 +36,7 @@ const keywordsDatabase = {
 };
 
 const categoryLimits = {
-    hai_huoc_meme: 80,       // Tăng thêm quota để tích được kho nhiều hơn
+    hai_huoc_meme: 80,       
     am_thuc_vlog: 30,        
     audio_truyen: 40,       
     thoi_trang_trai_dep: 20,  
@@ -58,7 +58,7 @@ function shuffle(array) {
 }
 
 app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào với kho dữ liệu lớn!");
+    res.send("🚀 Server TikTok TV App đang hoạt động ngon lành cành đào với đầy đủ hệ thống log!");
 });
 
 function isVietnameseContent(title) {
@@ -97,6 +97,8 @@ async function crawlAndSaveToJSON() {
     }
     
     selectedKeywords = shuffle(selectedKeywords);
+    console.log(`📡 [HỆ THỐNG] Đã lập lịch quét cân bằng với ${selectedKeywords.length} từ khóa...`);
+    
     let newlyFetchedVideos = [];
 
     for (const item of selectedKeywords) {
@@ -105,8 +107,6 @@ async function crawlAndSaveToJSON() {
         const maxLimitForThisKeyword = categoryLimits[category] || 30; 
 
         let keywordVideosFetched = []; 
-        
-        // Tăng độ sâu nhảy trang ngẫu nhiên để săn được nhiều video độc lạ
         const pageCursors = [
             Math.floor(Math.random() * 10) * 10, 
             Math.floor(Math.random() * 10 + 10) * 10
@@ -117,6 +117,9 @@ async function crawlAndSaveToJSON() {
 
             try {
                 await new Promise(resolve => setTimeout(resolve, 1200)); 
+                // 📝 ĐÃ KHÔI PHỤC LOG TIẾN TRÌNH THEO TỪNG MỤC
+                console.log(`⏳ Quét nhóm [${category.toUpperCase()}] - Từ khóa: "${keyword}" (Max cho phép: ${maxLimitForThisKeyword})`);
+                
                 const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}&_r=${Math.random()}`;
                 
                 const response = await axios.get(targetUrl, { 
@@ -156,6 +159,9 @@ async function crawlAndSaveToJSON() {
                 }
             } catch (err) { console.log(`⚠️ Lỗi quét từ khóa [${keyword}]: ${err.message}`); }
         }
+        
+        // 📝 ĐÃ KHÔI PHỤC LOG CHỐT SỔ MỖI TỪ KHÓA
+        console.log(`   -> Chốt sổ từ khóa: Gom được ${keywordVideosFetched.length} / ${maxLimitForThisKeyword} clip tối đa.`);
         newlyFetchedVideos = [...newlyFetchedVideos, ...keywordVideosFetched];
     }
 
@@ -166,20 +172,32 @@ async function crawlAndSaveToJSON() {
     let finalResult = Array.from(uniqueMap.values());
     if (finalResult.length === 0) return { status: "Kho rỗng" };
     
-    // 🔥 CHIẾN THUẬT: Nâng trần bộ nhớ từ 2000 lên hẳn 5000 bài để tha hồ bốc 250 bài không sợ trùng mặt cũ
     finalResult = shuffle(finalResult).slice(-5000);
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
 
-    return { status: "Thành công!", totalInDatabase: finalResult.length };
+    // 📝 🔥 ĐÃ KHÔI PHỤC CỤM LOG TỔNG KẾT BẢNG BIỂU SIÊU ĐẸP MẮT CHO ÔNG GIÁO BÁM LOG
+    console.log(`\n📊 ========================================================`);
+    console.log(`📊 [THỐNG KÊ HOÀN THÀNH TIẾN TRÌNH CÀO VIDEO TREND]`);
+    console.log(`   - 🔎 Tổng số video quét từ API TikWM : ${totalFetchedFromAPI} clip`);
+    console.log(`   - ✅ Số clip tiếng Việt XỊN giữ lại  : ${totalValidVN} clip`);
+    console.log(`   - ❌ Số clip nước ngoài bị CHẶN ĐỨNG : ${totalBlockedForeign} clip`);
+    console.log(`   - 💾 Tổng số lượng kho lưu trữ JSON  : ${finalResult.length} clip (Đã ép quota cân bằng)`);
+    console.log(`========================================================\n`);
+
+    return {
+        status: "Thành công!",
+        totalFetched: totalFetchedFromAPI,
+        totalValid: totalValidVN,
+        totalBlocked: totalBlockedForeign,
+        totalInDatabase: finalResult.length
+    };
 }
 
 crawlAndSaveToJSON();
 
-// 📺 API TRẢ VỀ CHO APP TV (ĐÃ TRẢ LẠI SỐ LƯỢNG LỚN CHO ÔNG GIÁO)
+// API TRẢ VỀ CHO APP TV (GIỮ ĐÚNG SỐ LƯỢNG 250 CHO ÔNG GIÁO)
 app.get(['/api/video', '/api/category'], (req, res) => {
-    // 🔥 ĐÃ HOÀN NGUYÊN: Mặc định lấy đúng 250 bài như code cũ của ông giáo
     const count = parseInt(req.query.count) || 250; 
-    
     try {
         let liveVideos = [];
         if (fs.existsSync(FILE_PATH)) {
@@ -190,17 +208,13 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         liveVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
         let finalPlayList = Array.from(uniqueMap.values());
 
-        // Lọc loại trừ video đã xem nếu App có truyền lên danh sách loại trừ
         const excludeParam = req.query.exclude;
         if (excludeParam) {
             const excludedIds = excludeParam.split(',');
             finalPlayList = finalPlayList.filter(v => !excludedIds.includes(v.videoId));
         }
 
-        // Xáo trộn mạnh danh sách tổng trước khi bốc hàng
         finalPlayList = shuffle(finalPlayList);
-        
-        // Trả về đúng cụm lớn 250 bài cho app ôm về load một thể
         return res.json(finalPlayList.slice(0, count));
     } catch (e) { return res.json([]); }
 });
@@ -208,7 +222,7 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 // API TÌM KIẾM ĐỘNG
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
-    const count = parseInt(req.query.count) || 250; // Trả lại số lượng lớn cho tìm kiếm luôn
+    const count = parseInt(req.query.count) || 250; 
     if (!keyword) return res.json([]);
     try {
         const randomCursor = Math.floor(Math.random() * 8) * 10; 
@@ -249,7 +263,6 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Hệ thống bot vừa thực hiện quét kho video mới xong!", thong_ke_chi_tiet: reportStats });
 });
 
-// Chạy cào tự động định kỳ mỗi 45 phút để nạp đầy kho 5000 bài
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) { console.log("⚠️ Lỗi cập nhật tự động:", err.message); }
 }, 45 * 60 * 1000);
