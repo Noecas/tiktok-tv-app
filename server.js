@@ -44,63 +44,58 @@ const categoryLimits = {
     generic_xuhuong: 50       
 };
 
-const app = Web = express(); 
+const app = express(); 
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
+// 🔥 KHO BỘ NHỚ ĐỆM SIÊU TỐC: Quét xong nhét thẳng vào đây để API ăn luôn lập tức!
+let globalVideosCache = [];
+
 function shuffle(array) {
     if (!Array.isArray(array)) return array;
-    for (let i = array.length - 1; i > 0; i--) {
+    let shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    return array;
+    return shuffled;
 }
 
 app.get('/', (req, res) => {
-    res.send("🚀 Server TikTok TV - Bộ lọc thông minh: Chủ đạo Việt, lâu lâu có Trung & Hàn!");
+    res.send(`🚀 Server Live! Kho hiện tại có: ${globalVideosCache.length} clip đã trộn xà quần.`);
 });
 
 // =======================================================================================
-// 🌟 BỘ LỌC CẢI TIẾN: VẪN VIỆT NGHÈO NÀN NHƯNG THI THOẢNG CHO TRUNG/HÀN LỌT LƯỚI
+// 🌟 BỘ LỌC ĐÚNG Ý ÔNG GIÁO: CHỦ ĐẠO VIỆT, LÂU LÂU CHO TRUNG/HÀN LỌT LƯỚI (~25%)
 // =======================================================================================
 function isVietnameseContent(title) {
-    if (!title) return true; // Không có caption vẫn duyệt vì ăn theo từ khóa quét ban đầu
+    if (!title) return true; 
 
-    // Nhận diện ký tự Trung Quốc và Hàn Quốc
     const hasChinese = /[\u4e00-\u9fa5]/.test(title);
     const hasKorean = /[\uac00-\ud7af]/.test(title);
     
-    // Chặn tuyệt đối các tiếng khác (Nhật Bản, Thái Lan, Campuchia, Ả Rập...)
+    // Chặn cứng các tiếng bánh mì, chữ giun dế khác (Nhật, Thái, Campuchia, Ả Rập...)
     const blockOthersRegex = /[\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u0e00-\u0e7f]/;
     if (blockOthersRegex.test(title)) return false;
 
-    // 🔥 Ý ÔNG GIÁO: Nếu dính chữ Trung hoặc Hàn, chỉ cho phép lọt lưới ngẫu nhiên ~25% (lâu lâu mới xuất hiện)
+    // Nếu dính chữ Trung hoặc Hàn -> Tỷ lệ lọt lưới chỉ 25% (Lâu lâu mới thấy một bài)
     if (hasChinese || hasKorean) {
         return Math.random() < 0.25; 
     }
 
-    // Kiểm tra tiếng Việt có dấu hoặc các từ khóa/hashtag hot của giới trẻ Việt
-    const vnTones = /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i;
-    const commonVnWords = /threads|tiktok|remix|hot|review|vlog|drama|vs|tv|idols|p1|p2|part|dance|mashup|edm|flex|xuhuong|xh|fyp|trend|capcut|meme/i;
-    
-    if (vnTones.test(title) || commonVnWords.test(title)) {
-        return true;
-    }
-
-    // Các trường hợp chữ Latinh không dấu (Ví dụ: "trai dep co mui", "nhac cuon qua") cho qua luôn
-    return true;
+    return true; // Cho qua chữ Việt có dấu và Latinh không dấu
 }
 
-// 📡 TIẾN TRÌNH CÀO VÀ ĐẾM LOG CHI TIẾT
+// 📡 TIẾN TRÌNH CÀO, LỌC VÀ NHÉT THẲNG VÀO API LINK
 async function crawlAndSaveToJSON() {
-    console.log("\n🔄 [HỆ THỐNG] Bắt đầu tiến trình quét dữ liệu...");
+    console.log("\n🔄 [HỆ THỐNG] Bắt đầu tiến trình quét dữ liệu mới...");
     let oldVideos = [];
     
     let totalFetchedFromAPI = 0;
     let totalValidVN = 0;
     let totalBlockedForeign = 0;
 
+    // Nạp kho cũ từ file làm nền móng trước để tránh hụt bài
     try {
         if (fs.existsSync(FILE_PATH)) {
             oldVideos = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
@@ -179,15 +174,14 @@ async function crawlAndSaveToJSON() {
                         } else { break; }
                     }
                 }
-            } catch (err) { /* Bỏ qua lỗi kết nối lẻ */ }
+            } catch (err) { /* Bỏ qua lỗi mạng nhỏ nhặt */ }
         }
         
-        // 📊 IN CHI TIẾT TỪNG TỪ KHÓA ĐỂ THEO DÕI SẢN LƯỢNG
         console.log(`🔎 [${category.toUpperCase()}] Từ khóa: "${keyword}" -> Tìm thấy: ${kwTotalFetched} | Giữ lại: ${kwKept} | Loại bỏ: ${kwBlocked} -> Gom thực tế: ${keywordVideosFetched.length} bài.`);
-        
         newlyFetchedVideos = [...newlyFetchedVideos, ...keywordVideosFetched];
     }
 
+    // Gộp bài, lọc trùng lặp ID
     const totalMerged = [...oldVideos, ...newlyFetchedVideos];
     const uniqueMap = new Map();
     totalMerged.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
@@ -195,16 +189,22 @@ async function crawlAndSaveToJSON() {
     let finalResult = Array.from(uniqueMap.values());
     if (finalResult.length === 0) return { status: "Kho rỗng" };
     
+    // Giới hạn trần kho lưu trữ 5000 clip
     finalResult = shuffle(finalResult).slice(-5000);
+    
+    // 🔥 THỰC HIỆN Ý ÔNG GIÁO: NHÉT THẲNG VÀO BỘ NHỚ API LINK LUÔN VÀ TRỘN LẦN 2
+    globalVideosCache = shuffle(finalResult);
+
+    // Ghi bản backup xuống file đề phòng server khởi động lại
     fs.writeFileSync(FILE_PATH, JSON.stringify(finalResult, null, 2));
 
-    // 📊 BẢNG TỔNG KẾT SAU KHI HOÀN THÀNH TIẾN TRÌNH
+    // BẢNG TỔNG KẾT RENDER LOGS
     console.log(`\n📊 ========================================================`);
     console.log(`📊 [THỐNG KÊ HOÀN THÀNH TIẾN TRÌNH CÀO VIDEO TREND]`);
     console.log(`   - 🔎 Tổng số video quét từ API TikWM : ${totalFetchedFromAPI} clip`);
-    console.log(`   - ✅ Số clip được DUYỆT giữ lại     : ${totalValidVN} clip (Chủ yếu Việt + Một ít Trung/Hàn)`);
+    console.log(`   - ✅ Số clip được DUYỆT giữ lại     : ${totalValidVN} clip`);
     console.log(`   - ❌ Số clip bị CHẶN HOẶC LỌC BỎ     : ${totalBlockedForeign} clip`);
-    console.log(`   - 💾 Tổng số lượng kho lưu trữ JSON  : ${finalResult.length} clip`);
+    console.log(`   - 💾 ĐÃ NHẠP THẲNG VÀO API/VIDEO    : ${globalVideosCache.length} clip (Đã trộn xà quần lần 2)`);
     console.log(`========================================================\n`);
 
     return {
@@ -212,34 +212,46 @@ async function crawlAndSaveToJSON() {
         totalFetched: totalFetchedFromAPI,
         totalValid: totalValidVN,
         totalBlocked: totalBlockedForeign,
-        totalInDatabase: finalResult.length
+        totalInDatabase: globalVideosCache.length
     };
 }
 
-crawlAndSaveToJSON();
+// Hàm bổ trợ nạp nhanh dữ liệu khi server mới dựng dậy, giúp API có bài ăn ngay không bị trống kho
+function initCacheOnBoot() {
+    try {
+        if (fs.existsSync(FILE_PATH)) {
+            const data = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+            if (Array.isArray(data)) globalVideosCache = shuffle(data);
+        }
+    } catch (e) { globalVideosCache = []; }
+    // Đồng thời chạy cào mới đè lên ngay
+    crawlAndSaveToJSON();
+}
+initCacheOnBoot();
 
-// API XẢ 250 BÀI CHO APP TV
+// =======================================================================================
+// 📺 API XẢ BÀI CHO APP TV - SIÊU TỐC KHÔNG QUA ĐỌC FILE - TRỘN LẦN 3 XÀ QUẦN
+// =======================================================================================
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
-    try {
-        let liveVideos = [];
-        if (fs.existsSync(FILE_PATH)) {
-            liveVideos = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
-        }
+    
+    if (globalVideosCache.length === 0) {
+        return res.json([]); // Trả mảng rỗng nếu kho chưa kịp nạp bài nào
+    }
 
-        const uniqueMap = new Map();
-        liveVideos.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
-        let finalPlayList = Array.from(uniqueMap.values());
+    let finalPlayList = [...globalVideosCache];
 
-        const excludeParam = req.query.exclude;
-        if (excludeParam) {
-            const excludedIds = excludeParam.split(',');
-            finalPlayList = finalPlayList.filter(v => !excludedIds.includes(v.videoId));
-        }
+    // Lọc loại trừ video đã xem nếu App có truyền lên danh sách loại trừ
+    const excludeParam = req.query.exclude;
+    if (excludeParam) {
+        const excludedIds = excludeParam.split(',');
+        finalPlayList = finalPlayList.filter(v => !excludedIds.includes(v.videoId));
+    }
 
-        finalPlayList = shuffle(finalPlayList);
-        return res.json(finalPlayList.slice(0, count));
-    } catch (e) { return res.json([]); }
+    // 🔥 TRỘN XÀ QUẦN LẦN 3 TRƯỚC KHI TRẢ VỀ CHO APP TV ĐÓN NHẬN
+    finalPlayList = shuffle(finalPlayList);
+    
+    return res.json(finalPlayList.slice(0, count));
 });
 
 // API TÌM KIẾM ĐỘNG
@@ -286,9 +298,9 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Hệ thống bot vừa thực hiện quét kho video mới xong!", thong_ke_chi_tiet: reportStats });
 });
 
-// Cào tự động sau mỗi 45 phút
+// Tự động quét cập nhật kho lớn sau mỗi 45 phút
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) { console.log("⚠️ Lỗi cập nhật tự động:", err.message); }
 }, 45 * 60 * 1000);
 
-app.listen(PORT, () => console.log(`🚀 Server Đa Thể Loại chính thức kích nổ thành công tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server Đa Thể Loại Siêu Tốc chính thức kích nổ tại cổng ${PORT}`));
