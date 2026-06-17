@@ -34,7 +34,6 @@ const keywordsDatabase = {
         "Audio Việt Nam",
         "Audio Tổng Tài",
         "Audio Thiên Kim",
-        "120fps video"
     ],
     // Nhóm 4: Thời trang & Trai đẹp (Vừa đủ ngắm)
     thoi_trang_trai_dep: [
@@ -64,7 +63,7 @@ const keywordsDatabase = {
 // 🎯 BẢNG HẠN NGẠCH (QUOTA) ĐÃ ĐIỀU CHỈNH - HÀI NHIỀU, AUDIO ĐỦ NGHE, GIẬT GIẬT BỚT LẠI
 // =======================================================================================
 const categoryLimits = {
-    hai_huoc_meme: 25,       
+    hai_huoc_meme: 50,       
     am_thuc_vlog: 10,        
     audio_truyen: 15,        // Nghe tổng tài mệt nghỉ
     thoi_trang_trai_dep: 8,  
