@@ -8,14 +8,14 @@ const path = require('path');
 // =======================================================================================
 const keywordsDatabase = {
     hai_huoc_meme: [
-        "review phim", "lốp", "Threads Việt Nam", "TikTok Việt Nam", 
+        "review phim", "Threads Việt Nam", "TikTok Việt Nam", 
         "fyp", "xuhuong", "biketok", "xh", "hate that i made you love me", 
         "Capcut Giật Giật", "viral"
     ],
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
         "vlog cuoc song hang ngay chill", "goc khuat cuoc song tam trang", 
-        "podcast chữa lành tâm trạng ", "Chuỗi"
+        "podcast chữa lành tâm trạng ", "Chuỗi", "Lốp"
     ],
     audio_truyen: [
         "Audio Việt Nam", "Audio Tổng Tài", "Audio Thiên Kim"
