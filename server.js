@@ -15,7 +15,7 @@ const keywordsDatabase = {
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
         "vlog cuoc song hang ngay chill", "goc khuat cuoc song tam trang", 
-        "podcast chữa lành tâm trạng ", "Chuỗi", "phong cảnh"
+        "podcast chữa lành tâm trạng ", "Chuỗi", "phong cảnh Việt Nam"
     ],
     audio_truyen: [
         "Audio Việt Nam", "Audio Tổng Tài", "Audio Thiên Kim"
