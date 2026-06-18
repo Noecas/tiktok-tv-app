@@ -73,9 +73,13 @@ function isVietnameseContent(title) {
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ SỬA: ĐÁNH DẤU CHỦ ĐỀ & THÊM COMMENT_COUNT
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ SỬA: IN BÁO CÁO CHI TIẾT & CHỐNG KẸT KHÓA CHẾT
 async function crawlAndSaveToJSON() {
-    if (isCrawling) return { status: "Đang cào ngầm" };
+    if (isCrawling) {
+        console.log("⏳ [HỆ THỐNG] Tiến trình cào đang chạy ngầm, bỏ qua lượt kích hoạt trùng lặp.");
+        return { status: "Đang cào ngầm" };
+    }
+    
     isCrawling = true;
     console.log("\n🔄 [HỆ THỐNG] Khởi động chu kỳ quét sâu dữ liệu...");
     
@@ -83,90 +87,121 @@ async function crawlAndSaveToJSON() {
     let totalValidVN = 0;
     let totalBlockedForeign = 0;
 
-    let selectedKeywords = [];
-    for (const category in keywordsDatabase) {
-        const shuffledCatKeywords = shuffle([...keywordsDatabase[category]]);
-        const picked = shuffledCatKeywords.slice(0, 7).map(kw => ({ text: kw, category: category }));
-        selectedKeywords = [...selectedKeywords, ...picked];
-    }
-    selectedKeywords = shuffle(selectedKeywords);
+    try {
+        let selectedKeywords = [];
+        for (const category in keywordsDatabase) {
+            const shuffledCatKeywords = shuffle([...keywordsDatabase[category]]);
+            const picked = shuffledCatKeywords.slice(0, 7).map(kw => ({ text: kw, category: category }));
+            selectedKeywords = [...selectedKeywords, ...picked];
+        }
+        selectedKeywords = shuffle(selectedKeywords);
 
-    for (const item of selectedKeywords) {
-        const keyword = item.text.trim();
-        const category = item.category;
-        const maxLimitForThisKeyword = categoryLimits[category] || 30; 
+        for (const item of selectedKeywords) {
+            const keyword = item.text.trim();
+            const category = item.category;
+            const maxLimitForThisKeyword = categoryLimits[category] || 30; 
 
-        let keywordVideosFetched = []; 
-        const pageCursors = [Math.floor(Math.random() * 25) * 10, Math.floor(Math.random() * 25 + 25) * 10];
+            let keywordVideosFetched = []; 
+            const pageCursors = [Math.floor(Math.random() * 25) * 10, Math.floor(Math.random() * 25 + 25) * 10];
 
-        for (const randomCursor of pageCursors) {
-            if (keywordVideosFetched.length >= maxLimitForThisKeyword) break;
-            try {
-                await new Promise(resolve => setTimeout(resolve, 1000)); 
-                const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}&_r=${Math.random()}`;
-                const response = await axios.get(targetUrl, { 
-                    timeout: 10000,
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-                });
+            for (const randomCursor of pageCursors) {
+                if (keywordVideosFetched.length >= maxLimitForThisKeyword) break;
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); 
+                    const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}&_r=${Math.random()}`;
+                    const response = await axios.get(targetUrl, { 
+                        timeout: 10000,
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                    });
 
-                if (response.data && response.data.code === 0 && response.data.data && Array.isArray(response.data.data.videos)) {
-                    const fetched = response.data.data.videos.map(v => {
-                        totalFetchedFromAPI++;
-                        if (!isVietnameseContent(v.title || "")) {
-                            totalBlockedForeign++;
-                            return null; 
+                    if (response.data && response.data.code === 0 && response.data.data && Array.isArray(response.data.data.videos)) {
+                        const fetched = response.data.data.videos.map(v => {
+                            totalFetchedFromAPI++;
+                            if (!isVietnameseContent(v.title || "")) {
+                                totalBlockedForeign++;
+                                return null; 
+                            }
+                            totalValidVN++;
+
+                            // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Thêm comment_count + Thêm nhãn danh mục (category)
+                            return {
+                                videoId: v.video_id,
+                                video_id: v.video_id,
+                                id: v.video_id,
+
+                                videoUrl: v.play,
+                                video_url: v.play,
+                                play: v.play,
+
+                                title: v.title || "",
+                                cover: v.cover,
+                                views: v.play_count || 0,
+                                play_count: v.play_count || 0,
+                                
+                                // 👇 FIX LỖI BÌNH LUẬN 0: Găm chặt số lượng comment vào đây
+                                comment_count: v.comment_count || 0,
+                                commentCount: v.comment_count || 0,
+
+                                author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
+                                authorName: v.author?.nickname || "Người dùng Tóp Tóp",
+                                author_name: v.author?.nickname || "Người dùng Tóp Tóp",
+                                avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
+                                
+                                // 👇 FIX LỖI TRÙNG CHỦ ĐỀ: Lưu giữ gốc gác danh mục của video
+                                category: category 
+                            };
+                        }).filter(v => v !== null);
+
+                        for (const video of fetched) {
+                            if (keywordVideosFetched.length < maxLimitForThisKeyword) keywordVideosFetched.push(video);
+                            else break;
                         }
-                        totalValidVN++;
-
-                        // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Thêm comment_count + Thêm nhãn danh mục (category)
-                        return {
-                            videoId: v.video_id,
-                            video_id: v.video_id,
-                            id: v.video_id,
-
-                            videoUrl: v.play,
-                            video_url: v.play,
-                            play: v.play,
-
-                            title: v.title || "",
-                            cover: v.cover,
-                            views: v.play_count || 0,
-                            play_count: v.play_count || 0,
-                            
-                            // 👇 FIX LỖI BÌNH LUẬN 0: Găm chặt số lượng comment vào đây
-                            comment_count: v.comment_count || 0,
-                            commentCount: v.comment_count || 0,
-
-                            author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
-                            authorName: v.author?.nickname || "Người dùng Tóp Tóp",
-                            author_name: v.author?.nickname || "Người dùng Tóp Tóp",
-                            avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
-                            
-                            // 👇 FIX LỖI TRÙNG CHỦ ĐỀ: Lưu giữ gốc gác danh mục của video
-                            category: category 
-                        };
-                    }).filter(v => v !== null);
-
-                    for (const video of fetched) {
-                        if (keywordVideosFetched.length < maxLimitForThisKeyword) keywordVideosFetched.push(video);
-                        else break;
                     }
+                } catch (err) {
+                    // Hiện lỗi nhỏ nếu API bị nghẽn mạng để ông giáo theo dõi
+                    console.log(`⚠️ [LỖI TỪ KHÓA] Quét từ khóa "${keyword}" thất bại: ${err.message}`);
                 }
-            } catch (err) {}
+            }
+            
+            if (keywordVideosFetched.length > 0) {
+                const totalMerged = [...globalVideosCache, ...keywordVideosFetched];
+                const uniqueMap = new Map();
+                totalMerged.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
+                globalVideosCache = shuffle(Array.from(uniqueMap.values())).slice(-5000);
+                try { 
+                    fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2)); 
+                } catch (e) {
+                    console.log(`❌ [LỖI GHI FILE JSON]: ${e.message}`);
+                }
+            }
         }
-        
-        if (keywordVideosFetched.length > 0) {
-            const totalMerged = [...globalVideosCache, ...keywordVideosFetched];
-            const uniqueMap = new Map();
-            totalMerged.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
-            globalVideosCache = shuffle(Array.from(uniqueMap.values())).slice(-5000);
-            try { fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2)); } catch (e) {}
-        }
-    }
 
-    console.log(`📊 [TỔNG KẾT] Kho RAM live găm giữ vững chắc: ${globalVideosCache.length} clip.`);
-    isCrawling = false;
-    return { status: "Thành công!", totalInDatabase: globalVideosCache.length };
+        // 📊 BẢNG BÁO CÁO THẦN SẦU MÀ ÔNG GIÁO CẦN: Lộ diện toàn bộ biến số liệu lên terminal
+        console.log(`\n==================================================`);
+        console.log(`📊 [BÁO CÁO CHI TIẾT CHU KỲ QUÉT DỮ LIỆU]`);
+        console.log(`📥 Tổng số video tải về từ API gốc: ${totalFetchedFromAPI} clip.`);
+        console.log(`✅ Số lượng video VN hợp lệ giữ lại: ${totalValidVN} clip.`);
+        console.log(`🚫 Số lượng video nước ngoài bị chặn: ${totalBlockedForeign} clip.`);
+        console.log(`💾 Tổng kho RAM hiện tại găm giữ vững chắc: ${globalVideosCache.length} clip.`);
+        console.log(`==================================================\n`);
+
+        return { 
+            status: "Thành công!", 
+            totalInDatabase: globalVideosCache.length,
+            fetched: totalFetchedFromAPI,
+            valid: totalValidVN,
+            blocked: totalBlockedForeign
+        };
+
+    } catch (globalErr) {
+        console.log(`🚨 [SẬP TIẾN TRÌNH] Lỗi hệ thống nghiêm trọng: ${globalErr.message}`);
+        return { status: "Thất bại", error: globalErr.message };
+    } finally {
+        // 🔥 KHÓA BẢO HIỂM CHÍ MẠNG: Dù cào thành công hay bị lỗi văng ra giữa chừng,
+        // bắt buộc phải xả biến isCrawling về false để không bao giờ bị kẹt im re nữa.
+        isCrawling = false;
+        console.log("🔓 [HỆ THỐNG] Đã giải phóng bùa phong ấn isCrawling thành công!");
+    }
 }
 
 function initCacheOnBoot() {
@@ -273,7 +308,7 @@ app.get('/api/video/search', async (req, res) => {
                     videoId: v.video_id, video_id: v.video_id, id: v.video_id,
                     videoUrl: v.play, video_url: v.play, play: v.play,
                     title: v.title, cover: v.cover, views: v.play_count || 0, play_count: v.play_count || 0,
-                    comment_count: v.comment_count || 0, // Sửa lỗi hiển thị comment khi tìm kiếm
+                    comment_count: v.comment_count || 0, 
                     commentCount: v.comment_count || 0,
                     author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", 
                     authorName: v.author?.nickname || "Người dùng Tóp Tóp", author_name: v.author?.nickname || "Người dùng Tóp Tóp",
@@ -291,6 +326,7 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Đang ép bot cào cuốn chiếu!", thong_tin: reportStats });
 });
 
+// Chạy vòng lặp tự động cào sau mỗi 45 phút
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) {}
 }, 45 * 60 * 1000);
