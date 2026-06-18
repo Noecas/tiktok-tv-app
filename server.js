@@ -48,7 +48,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
-// KHO BỘ NHỚ ĐỆM LIVE (RAM CACHE)
 let globalVideosCache = [];
 let isCrawling = false; 
 
@@ -74,24 +73,12 @@ function isVietnameseContent(title) {
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU VỚI HỆ THỐNG BÁO CÁO SIÊU CHI TIẾT
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ BỌC LÓT ĐA CẤU TRÚC BIẾN
 async function crawlAndSaveToJSON() {
-    if (isCrawling) {
-        console.log("⏳ [BOT] Tiến trình cào trước đó chưa xong, lượt quét này tạm hoãn để tránh thắt nút cổ chai.");
-        return { status: "Đang cào ngầm" };
-    }
+    if (isCrawling) return { status: "Đang cào ngầm" };
     isCrawling = true;
-    console.log("\n🔄 [HỆ THỐNG] Kích hoạt chu kỳ quét sâu - Báo cáo logs thời gian thực...");
+    console.log("\n🔄 [HỆ THỐNG] Khởi động chu kỳ quét sâu dữ liệu...");
     
-    let oldVideos = [];
-    try {
-        if (fs.existsSync(FILE_PATH)) {
-            oldVideos = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
-            if (!Array.isArray(oldVideos)) oldVideos = [];
-        }
-    } catch (e) { oldVideos = []; }
-
-    // Biến đếm tổng cho toàn bộ chu kỳ quét
     let totalFetchedFromAPI = 0;
     let totalValidVN = 0;
     let totalBlockedForeign = 0;
@@ -102,7 +89,6 @@ async function crawlAndSaveToJSON() {
         const picked = shuffledCatKeywords.slice(0, 7).map(kw => ({ text: kw, category: category }));
         selectedKeywords = [...selectedKeywords, ...picked];
     }
-    
     selectedKeywords = shuffle(selectedKeywords);
 
     for (const item of selectedKeywords) {
@@ -111,10 +97,6 @@ async function crawlAndSaveToJSON() {
         const maxLimitForThisKeyword = categoryLimits[category] || 30; 
 
         let keywordVideosFetched = []; 
-        let kwTotalFetched = 0;
-        let kwKept = 0;
-        let kwBlocked = 0;
-
         const pageCursors = [Math.floor(Math.random() * 25) * 10, Math.floor(Math.random() * 25 + 25) * 10];
 
         for (const randomCursor of pageCursors) {
@@ -130,24 +112,29 @@ async function crawlAndSaveToJSON() {
                 if (response.data && response.data.code === 0 && response.data.data && Array.isArray(response.data.data.videos)) {
                     const fetched = response.data.data.videos.map(v => {
                         totalFetchedFromAPI++;
-                        kwTotalFetched++;
-
                         if (!isVietnameseContent(v.title || "")) {
                             totalBlockedForeign++;
-                            kwBlocked++;
                             return null; 
                         }
                         totalValidVN++;
-                        kwKept++;
 
+                        // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Đẻ ra cả dạng snake_case lẫn camelCase để chặn đứng lỗi Undefined ID
                         return {
                             videoId: v.video_id,
+                            video_id: v.video_id,
+                            id: v.video_id,
+
                             videoUrl: v.play,
+                            video_url: v.play,
+                            play: v.play,
+
                             title: v.title || "",
                             cover: v.cover,
                             views: v.play_count || 0,
+                            play_count: v.play_count || 0,
                             author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
                             authorName: v.author?.nickname || "Người dùng Tóp Tóp",
+                            author_name: v.author?.nickname || "Người dùng Tóp Tóp",
                             avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png"
                         };
                     }).filter(v => v !== null);
@@ -160,38 +147,18 @@ async function crawlAndSaveToJSON() {
             } catch (err) {}
         }
         
-        // 📊 BÁO CÁO CHI TIẾT TỪNG TỪ KHÓA LÊN RENDER LOGS
-        console.log(`🔎 [${category.toUpperCase()}] Từ khóa: "${keyword}" -> Tìm thấy: ${kwTotalFetched} | Giữ lại: ${kwKept} | Loại bỏ: ${kwBlocked} -> Gom thực tế: ${keywordVideosFetched.length} bài.`);
-
-        // Bơm cuốn chiếu thẳng cánh vào RAM
         if (keywordVideosFetched.length > 0) {
             const totalMerged = [...globalVideosCache, ...keywordVideosFetched];
             const uniqueMap = new Map();
-            totalMerged.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
-            
+            totalMerged.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
             globalVideosCache = shuffle(Array.from(uniqueMap.values())).slice(-5000);
-            
             try { fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2)); } catch (e) {}
-            console.log(`   ⚡ [LIVE PUSH] Đã đồng bộ và trộn xà quần thêm ${keywordVideosFetched.length} clip vào API.`);
         }
     }
 
-    // 📊 BẢNG TỔNG KẾT TOÀN DIỆN CUỐI CHU KỲ CÀO
-    console.log(`\n📊 ========================================================`);
-    console.log(`📊 [THỐNG KÊ HOÀN THÀNH TIẾN TRÌNH CÀO VIDEO TREND]`);
-    console.log(`   - 🔎 Tổng số video đã quét qua API   : ${totalFetchedFromAPI} clip`);
-    console.log(`   - ✅ Số clip HỢP LỆ được thông qua   : ${totalValidVN} clip`);
-    console.log(`   - ❌ Số clip ngoại bang bị lọc bỏ    : ${totalBlockedForeign} clip`);
-    console.log(`   - 💾 TỔNG KHO RAM HIỆN TẠI ĐANG CÓ   : ${globalVideosCache.length} clip (Sạch trùng - Sẵn sàng xả)`);
-    console.log(`========================================================\n`);
-
+    console.log(`📊 [TỔNG KẾT] Kho RAM live găm giữ vững chắc: ${globalVideosCache.length} clip.`);
     isCrawling = false;
-    return { 
-        status: "Thành công!", 
-        totalFetched: totalFetchedFromAPI,
-        totalValid: totalValidVN,
-        totalInDatabase: globalVideosCache.length 
-    };
+    return { status: "Thành công!", totalInDatabase: globalVideosCache.length };
 }
 
 function initCacheOnBoot() {
@@ -205,48 +172,45 @@ function initCacheOnBoot() {
 }
 initCacheOnBoot();
 
-// =======================================================================================
-// 📺 API XẢ BÀI ĐỘC QUYỀN - CƠ CHẾ XẢ KHO HÀNH QUYẾT + BÁO CÁO ĐẦY ĐỦ
-// =======================================================================================
+// 📺 API XẢ BÀI ĐỘC QUYỀN - CƠ CHẾ XẢ KHO HÀNH QUYẾT
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
-    if (globalVideosCache.length === 0) {
-        console.log("🚨 [API CẢNH BÁO] App TV gọi lấy bài nhưng kho RAM trống rỗng!");
-        return res.json([]);
-    }
+    if (globalVideosCache.length === 0) return res.json([]);
 
     let tempPool = [...globalVideosCache];
     const excludeParam = req.query.exclude;
     if (excludeParam) {
         const excludedIds = excludeParam.split(',');
-        tempPool = tempPool.filter(v => !excludedIds.includes(v.videoId));
+        // Lọc loại trừ linh hoạt cả 2 đầu ID
+        tempPool = tempPool.filter(v => !excludedIds.includes(v.video_id) && !excludedIds.includes(v.videoId));
     }
 
     tempPool = shuffle(tempPool);
     let servedVideos = tempPool.slice(0, count);
-    const servedIds = servedVideos.map(v => v.videoId);
+    const servedIds = servedVideos.map(v => v.video_id);
     
-    // 💥 Cắt đuôi xóa bài khỏi RAM gốc luôn
-    globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.videoId));
+    // Tuyệt diệt trùng bài tận gốc trên RAM
+    globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.video_id));
 
-    // 📊 BÁO CÁO HOẠT ĐỘNG XẢ KHO KHÔNG SỢ TRÙNG BÀI
-    console.log(`🎟️ [API XẢ BÀI] Đã đóng gói tiễn biệt ${servedVideos.length} clip lên TV. Kho RAM hiện tại còn đúng: ${globalVideosCache.length} clip.`);
+    console.log(`🎟️ [API XẢ KHO] Tiễn biệt ${servedVideos.length} bài. RAM còn lại: ${globalVideosCache.length} bài.`);
 
-    if (globalVideosCache.length < 600) {
-        console.log("⚠️ [RAM CHẠM ĐÁY] Số lượng tồn kho thấp hơn 600 bài! Kích hoạt bot cào bù hàng khẩn cấp...");
-        crawlAndSaveToJSON();
-    }
+    if (globalVideosCache.length < 600) crawlAndSaveToJSON();
     return res.json(servedVideos);
 });
 
 // =======================================================================================
-// 💬 API BÌNH LUẬN VẠN NĂNG - KÈM BÁO CÁO KIỂM SOÁT
+// 💬 API BÌNH LUẬN VẠN NĂNG - THIẾT LẬP BẢO HIỂM LỒNG CHỐNG "UNDEFINED"
 // =======================================================================================
 app.get('/api/comment/list', async (req, res) => {
-    const videoId = req.query.video_id || req.query.id;
-    if (!videoId) return res.json({ code: -1, msg: "Thiếu tham số!", comments: [] });
+    // Thu thập mọi biến thể tham số đầu vào từ App TV gửi lên
+    let videoId = req.query.video_id || req.query.id || req.query.videoId;
 
-    console.log(`💬 [API COMMENTS] Đang truy vấn danh sách bình luận cho clip ID: ${videoId}`);
+    // 🚨 BẮT QUẢ TANG: Nếu App TV truyền lên chuỗi chữ "undefined" do sai key
+    if (!videoId || videoId === 'undefined' || videoId === 'null') {
+        console.log(`🚨 [API COMMENTS CẢNH BÁO] App TV gửi lên ID video bị lỗi chuỗi: "${videoId}". Đã kích hoạt cấu trúc bọc lót kép để sửa lỗi!`);
+        return res.json({ code: 0, msg: "success", comments: [], data: { comments: [] } });
+    }
+
     try {
         const targetUrl = `https://www.tikwm.com/api/comment/list?id=${videoId}&count=50&cursor=0`;
         const response = await axios.get(targetUrl, { 
@@ -254,28 +218,35 @@ app.get('/api/comment/list', async (req, res) => {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
         });
 
-        let outputData = { ...response.data };
-        if (outputData.data && Array.isArray(outputData.data.comments)) {
-            outputData.comments = outputData.data.comments; 
-            console.log(`   ✅ Tải thành công ${outputData.comments.length} bình luận cho clip ${videoId}`);
-        } else {
-            outputData.comments = [];
-            console.log(`   ℹ️ Clip ${videoId} không có bình luận nào hoặc API chặn.`);
+        let commentsArray = [];
+        if (response.data && response.data.data && Array.isArray(response.data.data.comments)) {
+            commentsArray = response.data.data.comments;
+        } else if (response.data && Array.isArray(response.data.comments)) {
+            commentsArray = response.data.comments;
         }
 
-        return res.json(outputData);
+        console.log(`💬 [COMMENTS] Clip ${videoId} -> Hút thành công: ${commentsArray.length} bình luận.`);
+
+        // 🔥 PHÁT LỆNH VẠN NĂNG: Trả về mọi kiểu cấu trúc để App đọc kiểu gì cũng trúng
+        return res.json({
+            code: 0,
+            msg: "success",
+            comments: commentsArray,       // Kiểu phẳng trực tiếp
+            data: {
+                comments: commentsArray     // Kiểu lồng mặc định TikWM
+            },
+            list: commentsArray             // Kiểu mảng dự phòng bổ sung
+        });
     } catch (err) { 
-        console.log(`⚠️ Lỗi lấy bình luận của clip ${videoId}:`, err.message);
-        return res.json({ code: -1, msg: err.message, comments: [] }); 
+        return res.json({ code: -1, msg: err.message, comments: [], data: { comments: [] } }); 
     }
 });
 
-// API TÌM KIẾM ĐỘNG
+// API TÌM KIẾM ĐỘNG - CŨNG ĐƯỢC BẢO HIỂM BIẾN DUAL
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 250; 
     if (!keyword) return res.json([]);
-    console.log(`🔎 [API SEARCH] Người dùng tìm kiếm từ khóa: "${keyword}"`);
     try {
         const randomCursor = Math.floor(Math.random() * 30) * 10; 
         const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword.trim())}&count=${count}&cursor=${randomCursor}`;
@@ -284,9 +255,11 @@ app.get('/api/video/search', async (req, res) => {
             let fetched = response.data.data.videos.map(v => {
                 if (!isVietnameseContent(v.title || "")) return null; 
                 return { 
-                    videoId: v.video_id, videoUrl: v.play, title: v.title, cover: v.cover, views: v.play_count || 0, 
+                    videoId: v.video_id, video_id: v.video_id, id: v.video_id,
+                    videoUrl: v.play, video_url: v.play, play: v.play,
+                    title: v.title, cover: v.cover, views: v.play_count || 0, play_count: v.play_count || 0,
                     author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", 
-                    authorName: v.author?.nickname || "Người dùng Tóp Tóp",
+                    authorName: v.author?.nickname || "Người dùng Tóp Tóp", author_name: v.author?.nickname || "Người dùng Tóp Tóp",
                     avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png"
                 };
             }).filter(v => v !== null);
@@ -305,4 +278,4 @@ setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) {}
 }, 45 * 60 * 1000);
 
-app.listen(PORT, () => console.log(`🚀 Server Tuyệt Diệt Trùng Bài & Hệ Thống Logs Toàn Diện kích nổ tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server Tuyệt Diệt Trùng Bài & Bảo Hiểm Cấu Trúc Kép chạy tại cổng ${PORT}`));
