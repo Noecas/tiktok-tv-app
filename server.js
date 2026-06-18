@@ -8,14 +8,14 @@ const path = require('path');
 // =======================================================================================
 const keywordsDatabase = {
     hai_huoc_meme: [
-        "review phim", "Threads Việt Nam", "TikTok Việt Nam", 
+        "review phim", "lốp", "Threads Việt Nam", "TikTok Việt Nam", 
         "fyp", "xuhuong", "biketok", "xh", "hate that i made you love me", 
         "Capcut Giật Giật", "viral"
     ],
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
         "vlog cuoc song hang ngay chill", "goc khuat cuoc song tam trang", 
-        "podcast chữa lành tâm trạng ", "Chuỗi", "Lốp"
+        "podcast chữa lành tâm trạng ", "Chuỗi"
     ],
     audio_truyen: [
         "Audio Việt Nam", "Audio Tổng Tài", "Audio Thiên Kim"
@@ -50,6 +50,7 @@ const FILE_PATH = path.join(__dirname, 'videos.json');
 
 // KHO BỘ NHỚ ĐỆM LIVE (RAM CACHE)
 let globalVideosCache = [];
+let isCrawling = false; // Cờ chặn trùng tiến trình cào ngầm
 
 function shuffle(array) {
     if (!Array.isArray(array)) return array;
@@ -62,62 +63,68 @@ function shuffle(array) {
 }
 
 app.get('/', (req, res) => {
-    res.send(`🚀 Server TikTok TV - Live Cache: ${globalVideosCache.length} clip.`);
+    res.send(`🚀 Server TikTok TV - Kho RAM hiện tại còn: ${globalVideosCache.length} clip độc nhất.`);
 });
 
 // =======================================================================================
-// 🌟 BỘ LỌC CHUẨN: VIỆT NAM THẢ CỬA, TRUNG/HÀN LỌT LƯỚI 25%
+// 🌟 BỘ LỌC: VIỆT NAM THẢ CỬA, TRUNG/HÀN LỌT LƯỚI NGẪU NHIÊN 25%
 // =======================================================================================
 function isVietnameseContent(title) {
     if (!title) return true; 
-
     const hasChinese = /[\u4e00-\u9fa5]/.test(title);
     const hasKorean = /[\uac00-\ud7af]/.test(title);
     
     if (hasChinese || hasKorean) {
-        return Math.random() < 0.25; // Lâu lâu mới cho lọt lưới 25%
+        return Math.random() < 0.25; 
     }
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO - QUẾT TỪ NÀO NHÉT THẲNG VÀO LINK API TỪ ĐÓ!
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÀO CỰC SÂU - BƠM TRỰC TIẾP LÊN RAM
 async function crawlAndSaveToJSON() {
-    console.log("\n🔄 [HỆ THỐNG] Bắt đầu tiến trình quét cuốn chiếu...");
+    if (isCrawling) {
+        console.log("⏳ [BOT] Một tiến trình cào đang chạy rồi, bỏ qua lượt này.");
+        return { status: "Đang cào ngầm" };
+    }
+    isCrawling = true;
+    console.log("\n🔄 [HỆ THỐNG] Bắt đầu kích nổ vòng cào sâu lòng đất...");
     
-    let totalFetchedFromAPI = 0;
-    let totalValidVN = 0;
-    let totalBlockedForeign = 0;
+    let oldVideos = [];
+    try {
+        if (fs.existsSync(FILE_PATH)) {
+            oldVideos = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+            if (!Array.isArray(oldVideos)) oldVideos = [];
+        }
+    } catch (e) { oldVideos = []; }
 
     let selectedKeywords = [];
     for (const category in keywordsDatabase) {
         const shuffledCatKeywords = shuffle([...keywordsDatabase[category]]);
-        const picked = shuffledCatKeywords.slice(0, 4).map(kw => ({ text: kw, category: category }));
+        // 🔥 TĂNG ĐẬM: Bốc hẳn 7 từ khóa/danh mục để đa dạng hóa nội dung tức thì
+        const picked = shuffledCatKeywords.slice(0, 7).map(kw => ({ text: kw, category: category }));
         selectedKeywords = [...selectedKeywords, ...picked];
     }
     
     selectedKeywords = shuffle(selectedKeywords);
 
-    // Vòng lặp quét từng từ khóa một
     for (const item of selectedKeywords) {
         const keyword = item.text.trim();
         const category = item.category;
         const maxLimitForThisKeyword = categoryLimits[category] || 30; 
 
         let keywordVideosFetched = []; 
-        let kwTotalFetched = 0;
-        let kwKept = 0;
-        let kwBlocked = 0;
 
+        // 🔥 ĐÒN TRỪNG PHẠT: Ép cursor nhảy cực rộng từ 0 đến 500 để đào sâu clip cũ, clip lạ
         const pageCursors = [
-            Math.floor(Math.random() * 10) * 10, 
-            Math.floor(Math.random() * 10 + 10) * 10
+            Math.floor(Math.random() * 25) * 10,       // Lượt 1: Tiêu điểm từ 0 -> 240
+            Math.floor(Math.random() * 25 + 25) * 10  // Lượt 2: Tiêu điểm sâu từ 250 -> 490
         ];
 
         for (const randomCursor of pageCursors) {
             if (keywordVideosFetched.length >= maxLimitForThisKeyword) break;
 
             try {
-                await new Promise(resolve => setTimeout(resolve, 1200)); 
+                await new Promise(resolve => setTimeout(resolve, 1000)); 
                 const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword)}&count=30&cursor=${randomCursor}&_r=${Math.random()}`;
                 
                 const response = await axios.get(targetUrl, { 
@@ -129,22 +136,12 @@ async function crawlAndSaveToJSON() {
 
                 if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
                     const fetched = response.data.data.videos.map(v => {
-                        totalFetchedFromAPI++; 
-                        kwTotalFetched++;
-
-                        const titleText = v.title || "";
-                        if (!isVietnameseContent(titleText)) {
-                            totalBlockedForeign++; 
-                            kwBlocked++;
-                            return null; 
-                        }
-                        totalValidVN++; 
-                        kwKept++;
+                        if (!isVietnameseContent(v.title || "")) return null; 
                         
                         return {
                             videoId: v.video_id,
                             videoUrl: v.play,
-                            title: titleText,
+                            title: v.title || "",
                             cover: v.cover,
                             views: v.play_count || 0,
                             author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
@@ -159,39 +156,31 @@ async function crawlAndSaveToJSON() {
                         } else { break; }
                     }
                 }
-            } catch (err) { /* Bỏ qua lỗi mạng nhỏ */ }
+            } catch (err) { /* Bỏ qua lỗi kết nối mạng */ }
         }
         
-        console.log(`🔎 [${category.toUpperCase()}] Từ khóa: "${keyword}" -> Tìm thấy: ${kwTotalFetched} | Giữ lại: ${kwKept} | Loại bỏ: ${kwBlocked} -> Gom thực tế: ${keywordVideosFetched.length} bài.`);
-
-        // 🔥 Ý ÔNG GIÁO: CÓ HÀNG LÀ NHÉT THẲNG VÀO API / LỌC TRÙNG / TRỘN XÀ QUẦN LUÔN KHÔNG CHỜ ĐỢI!
+        // 🔥 GỘP VÀO RAM VÀ TRỘN XÀ QUẦN LẬP TỨC CHO TỪNG TỪ KHÓA
         if (keywordVideosFetched.length > 0) {
-            // Lấy kho hiện tại đang có sẵn trong RAM ra gộp luôn
             const totalMerged = [...globalVideosCache, ...keywordVideosFetched];
-            
-            // Tiến hành lọc trùng ID ngay tại trận
             const uniqueMap = new Map();
             totalMerged.forEach(v => { if (v.videoId) uniqueMap.set(v.videoId, v); });
             
             let finalResult = Array.from(uniqueMap.values());
-            
-            // Cắt gọn kho tối đa 5000 bài + Trộn xà quần lần 1
+            // Giữ trần kho RAM ở mức 5000 clip để tránh tràn bộ nhớ Render
             globalVideosCache = shuffle(finalResult).slice(-5000);
 
-            // Ghi đè file JSON dự phòng để lưu lại thành quả
-            try {
-                fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2));
-            } catch (e) { console.log("⚠️ Lỗi lưu file backup"); }
-            
-            console.log(`⚡ [LIVE PUSH] Đã bơm trực tiếp ${keywordVideosFetched.length} clip vào thẳng link api/video!`);
+            // Ghi file JSON dự phòng cứu hộ
+            try { fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2)); } catch (e) {}
+            console.log(`⚡ [LIVE PUSH] Đã bơm ${keywordVideosFetched.length} clip độc lạ từ từ khóa "${keyword}" vào thẳng API link!`);
         }
     }
 
-    console.log(`\n📊 [HOÀN THÀNH VÒNG QUÉT CHU KỲ] Kho RAM hiện tại đang sở hữu: ${globalVideosCache.length} bài.`);
+    console.log(`\n📊 [HOÀN THÀNH CHU KỲ CÀO SÂU] Tổng kho RAM đang găm: ${globalVideosCache.length} bài sạch bóng trùng lặp.`);
+    isCrawling = false;
     return { status: "Thành công!", totalInDatabase: globalVideosCache.length };
 }
 
-// Khởi động nạp kho khi server vừa bật
+// Khởi động nạp kho khi server vừa bật dậy
 function initCacheOnBoot() {
     try {
         if (fs.existsSync(FILE_PATH)) {
@@ -204,25 +193,38 @@ function initCacheOnBoot() {
 initCacheOnBoot();
 
 // =======================================================================================
-// 📺 API XẢ BÀI CHO APP TV - SIÊU TỐC - TRỘN XÀ QUẦN LẦN 2 TRƯỚC KHI TRẢ VỀ
+// 📺 API XẢ BÀI ĐỘC QUYỀN - CƠ CHẾ XẢ KHO HÀNH QUYẾT (ĂN ĐẾN ĐÂU XÓA ĐẾN ĐẤY)
 // =======================================================================================
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
     if (globalVideosCache.length === 0) return res.json([]);
 
-    let finalPlayList = [...globalVideosCache];
-
-    // Loại trừ video đã xem
+    // Lọc loại trừ video cũ (nếu app vẫn truyền tham số loại trừ lên)
+    let tempPool = [...globalVideosCache];
     const excludeParam = req.query.exclude;
     if (excludeParam) {
         const excludedIds = excludeParam.split(',');
-        finalPlayList = finalPlayList.filter(v => !excludedIds.includes(v.videoId));
+        tempPool = tempPool.filter(v => !excludedIds.includes(v.videoId));
     }
 
-    // 🔥 TRỘN XÀ QUẦN LẦN THỨ 2 TRƯỚC KHI TRẢ VỀ CHO APP XEM CHO CUỐN
-    finalPlayList = shuffle(finalPlayList);
+    // Lắc xúc xắc trộn xà quần một lần nữa cho chắc cốp
+    tempPool = shuffle(tempPool);
+
+    // 🔥 ĐÒN CHÍ MẠNG: Cắt ngọt phăng 'count' bài ra khỏi kho RAM gốc luôn!
+    // Lấy danh sách ID của số clip sắp xuất xưởng này để xóa hoàn toàn trong globalVideosCache
+    let servedVideos = tempPool.slice(0, count);
+    const servedIds = servedVideos.map(v => v.videoId);
+    globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.videoId));
+
+    console.log(`🎟️ [API] Đã xuất xưởng ${servedVideos.length} clip. Kho RAM hiện còn lại: ${globalVideosCache.length} bài chờ lượt.`);
+
+    // 🚨 CƠ CHẾ TỰ ĐỘNG BÙ HÀNG: Nếu kho RAM bị app hốc bạo quá tụt xuống dưới 600 bài, tự động gọi bot cào bù ngầm ngay!
+    if (globalVideosCache.length < 600) {
+        console.log("⚠️ [RAM CẢNH BÁO] Kho bài sắp cạn đáy! Tự động ra lệnh cho bot cào bù kho ngầm...");
+        crawlAndSaveToJSON(); // Chạy bất đồng bộ ngầm không làm nghẽn mạng của App TV
+    }
     
-    return res.json(finalPlayList.slice(0, count));
+    return res.json(servedVideos);
 });
 
 // API TÌM KIẾM ĐỘNG
@@ -231,7 +233,7 @@ app.get('/api/video/search', async (req, res) => {
     const count = parseInt(req.query.count) || 250; 
     if (!keyword) return res.json([]);
     try {
-        const randomCursor = Math.floor(Math.random() * 8) * 10; 
+        const randomCursor = Math.floor(Math.random() * 30) * 10; 
         const targetUrl = `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(keyword.trim())}&count=${count}&cursor=${randomCursor}`;
         const response = await axios.get(targetUrl, { timeout: 12000 });
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
@@ -266,7 +268,7 @@ app.get('/api/comment/list', async (req, res) => {
 
 app.get('/api/crawl-more', async (req, res) => {
     const reportStats = await crawlAndSaveToJSON();
-    res.json({ message: "Đang tiến hành cào cuốn chiếu trực tiếp vào API!", thong_ke: reportStats });
+    res.json({ message: "Đang ép lệnh cho hệ thống đào sâu cào ngầm cuốn chiếu!", thong_tin: reportStats });
 });
 
 // Tự động quét cập nhật sau mỗi 45 phút
@@ -274,4 +276,4 @@ setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) { console.log("⚠️ Lỗi cập nhật tự động:", err.message); }
 }, 45 * 60 * 1000);
 
-app.listen(PORT, () => console.log(`🚀 Server Đa Thể Loại Siêu Tốc Cuốn Chiếu hoạt động tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server Tuyệt Diệt Trùng Bài đã được kích hoạt tại cổng ${PORT}`));
