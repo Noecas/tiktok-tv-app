@@ -65,15 +65,48 @@ app.get('/', (req, res) => {
     res.send(`🚀 Server TikTok TV - Kho RAM hiện tại còn: ${globalVideosCache.length} clip độc nhất.`);
 });
 
-function isVietnameseContent(title) {
+// =======================================================================================
+// 🌍 CƠ CHẾ VISA ĐẶC CÁCH & BỘ LỌC NGÔN NGỮ ĐÃ NÂNG CẤP
+// =======================================================================================
+function isGlobalKeyword(kw) {
+    if (!kw) return false;
+    const lower = kw.toLowerCase().trim();
+    return [
+        "phonk", "funk", "biketok", "dance trend", 
+        "hate that i made you love me"
+    ].some(g => lower.includes(g));
+}
+
+function isVietnameseContent(title, keyword = "") {
     if (!title) return true; 
-    const hasChinese = /[\u4e00-\u9fa5]/.test(title);
-    const hasKorean = /[\uac00-\ud7af]/.test(title);
-    if (hasChinese || hasKorean) return Math.random() < 0.25; 
+
+    // 🔥 ĐÒN CHÍ MẠNG: Nếu từ khóa thuộc diện Phonk/Funk/Biketok... -> Bỏ qua bộ lọc, CHO QUA HẾT!
+    if (isGlobalKeyword(keyword)) return true;
+
+    // Chặn các ký tự tượng hình ngoại quốc bừa bãi (Trung, Hàn, Nhật, Thái, Nga...)
+    const hasForeignScript = /[\u4e00-\u9fa5]|[\uac00-\ud7af]|[\u3040-\u309f\u30a0-\u30ff]|[\u0e00-\u0e7f]|[\u0400-\u04ff]/.test(title);
+    if (hasForeignScript) return false;
+
+    const lowerTitle = title.toLowerCase();
+    
+    // Kiểm tra xem có dấu tiếng Việt không -> Có thì duyệt thẳng
+    const hasVnAccents = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(title);
+    if (hasVnAccents) return true;
+
+    // Bộ từ khóa tiếng Việt viết liền không dấu phổ biến
+    const hasVnKeywords = /\b(xh|xuhuong|fyp|capcut|remix|vinahouse|vietnam|vn|phim|truyen|haihuoc|amthuc|mukbang|vlog|review|traidep|gaixinh|bienhinh|giatgiat|chualanh|tamtrang|thuthuat|meo|vcl|vl|đm|clmm|ngau|dinh|top|hot|clip|bua|chuoi|phongcanh)\b/i.test(lowerTitle);
+    
+    // Các từ dừng tiếng Anh để nhận diện clip thuần Tây
+    const hasEnglishStops = /\b(the|and|this|that|with|from|your|have|for|just|like|when|what|here|about|they|them|girl|boy|guy|man|woman|cat|dog|challenge|today|night|love|beautiful|meme|cooking|food|recipe|tutorial|wfh|gym|workout|fitness|gaming|pc)\b/i.test(lowerTitle);
+
+    // Nếu tiêu đề thuần Tây không dính dáng tí ngữ cảnh VN nào -> Loại bỏ
+    if (hasEnglishStops && !hasVnKeywords) return false;
+    if (!hasVnAccents && !hasVnKeywords) return false;
+
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ SỬA: IN BÁO CÁO CHI TIẾT & CHỐNG KẸT KHÓA CHẾT
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ TRUYỀN KEYWORD VÀO BỘ LỌC
 async function crawlAndSaveToJSON() {
     if (isCrawling) {
         console.log("⏳ [HỆ THỐNG] Tiến trình cào đang chạy ngầm, bỏ qua lượt kích hoạt trùng lặp.");
@@ -117,13 +150,14 @@ async function crawlAndSaveToJSON() {
                     if (response.data && response.data.code === 0 && response.data.data && Array.isArray(response.data.data.videos)) {
                         const fetched = response.data.data.videos.map(v => {
                             totalFetchedFromAPI++;
-                            if (!isVietnameseContent(v.title || "")) {
+                            
+                            // 🔥 ĐÃ FIX: Truyền thêm keyword gốc vào đây để xét duyệt cấp "Visa đặc cách"
+                            if (!isVietnameseContent(v.title || "", keyword)) {
                                 totalBlockedForeign++;
                                 return null; 
                             }
                             totalValidVN++;
 
-                            // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Thêm comment_count + Thêm nhãn danh mục (category)
                             return {
                                 videoId: v.video_id,
                                 video_id: v.video_id,
@@ -138,7 +172,6 @@ async function crawlAndSaveToJSON() {
                                 views: v.play_count || 0,
                                 play_count: v.play_count || 0,
                                 
-                                // 👇 FIX LỖI BÌNH LUẬN 0: Găm chặt số lượng comment vào đây
                                 comment_count: v.comment_count || 0,
                                 commentCount: v.comment_count || 0,
 
@@ -147,7 +180,6 @@ async function crawlAndSaveToJSON() {
                                 author_name: v.author?.nickname || "Người dùng Tóp Tóp",
                                 avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
                                 
-                                // 👇 FIX LỖI TRÙNG CHỦ ĐỀ: Lưu giữ gốc gác danh mục của video
                                 category: category 
                             };
                         }).filter(v => v !== null);
@@ -158,7 +190,6 @@ async function crawlAndSaveToJSON() {
                         }
                     }
                 } catch (err) {
-                    // Hiện lỗi nhỏ nếu API bị nghẽn mạng để ông giáo theo dõi
                     console.log(`⚠️ [LỖI TỪ KHÓA] Quét từ khóa "${keyword}" thất bại: ${err.message}`);
                 }
             }
@@ -176,7 +207,6 @@ async function crawlAndSaveToJSON() {
             }
         }
 
-        // 📊 BẢNG BÁO CÁO THẦN SẦU MÀ ÔNG GIÁO CẦN: Lộ diện toàn bộ biến số liệu lên terminal
         console.log(`\n==================================================`);
         console.log(`📊 [BÁO CÁO CHI TIẾT CHU KỲ QUÉT DỮ LIỆU]`);
         console.log(`📥 Tổng số video tải về từ API gốc: ${totalFetchedFromAPI} clip.`);
@@ -197,8 +227,6 @@ async function crawlAndSaveToJSON() {
         console.log(`🚨 [SẬP TIẾN TRÌNH] Lỗi hệ thống nghiêm trọng: ${globalErr.message}`);
         return { status: "Thất bại", error: globalErr.message };
     } finally {
-        // 🔥 KHÓA BẢO HIỂM CHÍ MẠNG: Dù cào thành công hay bị lỗi văng ra giữa chừng,
-        // bắt buộc phải xả biến isCrawling về false để không bao giờ bị kẹt im re nữa.
         isCrawling = false;
         console.log("🔓 [HỆ THỐNG] Đã giải phóng bùa phong ấn isCrawling thành công!");
     }
@@ -215,16 +243,15 @@ function initCacheOnBoot() {
 }
 initCacheOnBoot();
 
-// 📺 API XẢ BÀI ĐỘC QUYỀN - ĐÃ SỬA: PHÂN PHỐI CHUẨN ĐÉT THEO DANH MỤC TỪ APP TV GỬI LÊN
+// 📺 API XẢ BÀI ĐỘC QUYỀN
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
-    const reqCategory = req.query.category; // Nhận diện danh mục tiếng Việt từ TV gửi lên
+    const reqCategory = req.query.category; 
 
     if (globalVideosCache.length === 0) return res.json([]);
 
     let tempPool = [...globalVideosCache];
 
-    // 🔥 BỘ LỌC ĐA LUỒNG: Ánh xạ danh mục tiếng Việt từ App TV sang key lưu trữ backend
     if (reqCategory && reqCategory !== "Dành cho bạn" && reqCategory !== "All") {
         let targetKey = "";
         if (reqCategory === "Hài hước" || reqCategory === "Phim & TV") targetKey = "hai_huoc_meme";
@@ -232,7 +259,6 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         else if (reqCategory === "Âm nhạc") targetKey = "nhac_giat_giat";
         
         if (targetKey) {
-            // Lọc ra đúng các video thuộc danh mục yêu cầu
             tempPool = tempPool.filter(v => v.category === targetKey);
         }
     }
@@ -247,7 +273,6 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     let servedVideos = tempPool.slice(0, count);
     const servedIds = servedVideos.map(v => v.video_id);
     
-    // Tuyệt diệt trùng bài trên RAM
     globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.video_id));
 
     console.log(`🎟️ [API XẢ KHO] Tiễn biệt ${servedVideos.length} bài. Danh mục lọc: "${reqCategory || 'Mặc định'}". RAM còn lại: ${globalVideosCache.length} bài.`);
@@ -256,7 +281,7 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     return res.json(servedVideos);
 });
 
-// 💬 API BÌNH LUẬN VẠN NĂNG - GIỮ NGUYÊN BẢO HIỂM LỒNG CHỐNG "UNDEFINED"
+// 💬 API BÌNH LUẬN VẠN NĂNG
 app.get('/api/comment/list', async (req, res) => {
     let videoId = req.query.video_id || req.query.id || req.query.videoId;
 
@@ -292,7 +317,7 @@ app.get('/api/comment/list', async (req, res) => {
     }
 });
 
-// API TÌM KIẾM ĐỘNG - ĐÃ SỬA: THÊM COMMENT_COUNT VÀO KẾT QUẢ TÌM KIẾM
+// 🔥 API TÌM KIẾM ĐỘNG - ĐÃ FIX: CHẤP NHẬN TÌM KIẾM CẢ ĐỒ NGOẠI NẾU GÕ PHONK/FUNK
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 250; 
@@ -303,7 +328,10 @@ app.get('/api/video/search', async (req, res) => {
         const response = await axios.get(targetUrl, { timeout: 12000 });
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
             let fetched = response.data.data.videos.map(v => {
-                if (!isVietnameseContent(v.title || "")) return null; 
+                
+                // 🔥 ĐÃ FIX: Truyền keyword vào đây để nếu gõ "phonk" trên TV app thì vẫn ra bài gốc chuẩn Tây!
+                if (!isVietnameseContent(v.title || "", keyword)) return null; 
+                
                 return { 
                     videoId: v.video_id, video_id: v.video_id, id: v.video_id,
                     videoUrl: v.play, video_url: v.play, play: v.play,
@@ -326,7 +354,6 @@ app.get('/api/crawl-more', async (req, res) => {
     res.json({ message: "Đang ép bot cào cuốn chiếu!", thong_tin: reportStats });
 });
 
-// Chạy vòng lặp tự động cào sau mỗi 45 phút
 setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) {}
 }, 45 * 60 * 1000);
