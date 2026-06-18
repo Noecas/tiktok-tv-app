@@ -73,7 +73,7 @@ function isVietnameseContent(title) {
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ BỌC LÓT ĐA CẤU TRÚC BIẾN
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ SỬA: ĐÁNH DẤU CHỦ ĐỀ & THÊM COMMENT_COUNT
 async function crawlAndSaveToJSON() {
     if (isCrawling) return { status: "Đang cào ngầm" };
     isCrawling = true;
@@ -118,7 +118,7 @@ async function crawlAndSaveToJSON() {
                         }
                         totalValidVN++;
 
-                        // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Đẻ ra cả dạng snake_case lẫn camelCase để chặn đứng lỗi Undefined ID
+                        // 🔥 ĐÒN BỌC LÓT CHÍ MẠNG: Thêm comment_count + Thêm nhãn danh mục (category)
                         return {
                             videoId: v.video_id,
                             video_id: v.video_id,
@@ -132,10 +132,18 @@ async function crawlAndSaveToJSON() {
                             cover: v.cover,
                             views: v.play_count || 0,
                             play_count: v.play_count || 0,
+                            
+                            // 👇 FIX LỖI BÌNH LUẬN 0: Găm chặt số lượng comment vào đây
+                            comment_count: v.comment_count || 0,
+                            commentCount: v.comment_count || 0,
+
                             author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user",
                             authorName: v.author?.nickname || "Người dùng Tóp Tóp",
                             author_name: v.author?.nickname || "Người dùng Tóp Tóp",
-                            avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png"
+                            avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png",
+                            
+                            // 👇 FIX LỖI TRÙNG CHỦ ĐỀ: Lưu giữ gốc gác danh mục của video
+                            category: category 
                         };
                     }).filter(v => v !== null);
 
@@ -172,16 +180,31 @@ function initCacheOnBoot() {
 }
 initCacheOnBoot();
 
-// 📺 API XẢ BÀI ĐỘC QUYỀN - CƠ CHẾ XẢ KHO HÀNH QUYẾT
+// 📺 API XẢ BÀI ĐỘC QUYỀN - ĐÃ SỬA: PHÂN PHỐI CHUẨN ĐÉT THEO DANH MỤC TỪ APP TV GỬI LÊN
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
+    const reqCategory = req.query.category; // Nhận diện danh mục tiếng Việt từ TV gửi lên
+
     if (globalVideosCache.length === 0) return res.json([]);
 
     let tempPool = [...globalVideosCache];
+
+    // 🔥 BỘ LỌC ĐA LUỒNG: Ánh xạ danh mục tiếng Việt từ App TV sang key lưu trữ backend
+    if (reqCategory && reqCategory !== "Dành cho bạn" && reqCategory !== "All") {
+        let targetKey = "";
+        if (reqCategory === "Hài hước" || reqCategory === "Phim & TV") targetKey = "hai_huoc_meme";
+        else if (reqCategory === "Ẩm thực") targetKey = "am_thuc_vlog";
+        else if (reqCategory === "Âm nhạc") targetKey = "nhac_giat_giat";
+        
+        if (targetKey) {
+            // Lọc ra đúng các video thuộc danh mục yêu cầu
+            tempPool = tempPool.filter(v => v.category === targetKey);
+        }
+    }
+
     const excludeParam = req.query.exclude;
     if (excludeParam) {
         const excludedIds = excludeParam.split(',');
-        // Lọc loại trừ linh hoạt cả 2 đầu ID
         tempPool = tempPool.filter(v => !excludedIds.includes(v.video_id) && !excludedIds.includes(v.videoId));
     }
 
@@ -189,25 +212,20 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     let servedVideos = tempPool.slice(0, count);
     const servedIds = servedVideos.map(v => v.video_id);
     
-    // Tuyệt diệt trùng bài tận gốc trên RAM
+    // Tuyệt diệt trùng bài trên RAM
     globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.video_id));
 
-    console.log(`🎟️ [API XẢ KHO] Tiễn biệt ${servedVideos.length} bài. RAM còn lại: ${globalVideosCache.length} bài.`);
+    console.log(`🎟️ [API XẢ KHO] Tiễn biệt ${servedVideos.length} bài. Danh mục lọc: "${reqCategory || 'Mặc định'}". RAM còn lại: ${globalVideosCache.length} bài.`);
 
     if (globalVideosCache.length < 600) crawlAndSaveToJSON();
     return res.json(servedVideos);
 });
 
-// =======================================================================================
-// 💬 API BÌNH LUẬN VẠN NĂNG - THIẾT LẬP BẢO HIỂM LỒNG CHỐNG "UNDEFINED"
-// =======================================================================================
+// 💬 API BÌNH LUẬN VẠN NĂNG - GIỮ NGUYÊN BẢO HIỂM LỒNG CHỐNG "UNDEFINED"
 app.get('/api/comment/list', async (req, res) => {
-    // Thu thập mọi biến thể tham số đầu vào từ App TV gửi lên
     let videoId = req.query.video_id || req.query.id || req.query.videoId;
 
-    // 🚨 BẮT QUẢ TANG: Nếu App TV truyền lên chuỗi chữ "undefined" do sai key
     if (!videoId || videoId === 'undefined' || videoId === 'null') {
-        console.log(`🚨 [API COMMENTS CẢNH BÁO] App TV gửi lên ID video bị lỗi chuỗi: "${videoId}". Đã kích hoạt cấu trúc bọc lót kép để sửa lỗi!`);
         return res.json({ code: 0, msg: "success", comments: [], data: { comments: [] } });
     }
 
@@ -227,22 +245,19 @@ app.get('/api/comment/list', async (req, res) => {
 
         console.log(`💬 [COMMENTS] Clip ${videoId} -> Hút thành công: ${commentsArray.length} bình luận.`);
 
-        // 🔥 PHÁT LỆNH VẠN NĂNG: Trả về mọi kiểu cấu trúc để App đọc kiểu gì cũng trúng
         return res.json({
             code: 0,
             msg: "success",
-            comments: commentsArray,       // Kiểu phẳng trực tiếp
-            data: {
-                comments: commentsArray     // Kiểu lồng mặc định TikWM
-            },
-            list: commentsArray             // Kiểu mảng dự phòng bổ sung
+            comments: commentsArray,       
+            data: { comments: commentsArray },
+            list: commentsArray             
         });
     } catch (err) { 
         return res.json({ code: -1, msg: err.message, comments: [], data: { comments: [] } }); 
     }
 });
 
-// API TÌM KIẾM ĐỘNG - CŨNG ĐƯỢC BẢO HIỂM BIẾN DUAL
+// API TÌM KIẾM ĐỘNG - ĐÃ SỬA: THÊM COMMENT_COUNT VÀO KẾT QUẢ TÌM KIẾM
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 250; 
@@ -258,6 +273,8 @@ app.get('/api/video/search', async (req, res) => {
                     videoId: v.video_id, video_id: v.video_id, id: v.video_id,
                     videoUrl: v.play, video_url: v.play, play: v.play,
                     title: v.title, cover: v.cover, views: v.play_count || 0, play_count: v.play_count || 0,
+                    comment_count: v.comment_count || 0, // Sửa lỗi hiển thị comment khi tìm kiếm
+                    commentCount: v.comment_count || 0,
                     author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", 
                     authorName: v.author?.nickname || "Người dùng Tóp Tóp", author_name: v.author?.nickname || "Người dùng Tóp Tóp",
                     avatar: v.author?.avatar || "https://www.w3schools.com/howto/img_avatar.png"
