@@ -10,7 +10,7 @@ const keywordsDatabase = {
     hai_huoc_meme: [
         "review phim", "lốp", "Threads Việt Nam", "TikTok Việt Nam", 
         "fyp", "xuhuong", "biketok", "xh", "hate that i made you love me", 
-        "Capcut Giật Giật", "viral", "xhtiktok"
+        "Capcut Giật Giật", "viral", "xhtiktok", "BMW"
     ],
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
@@ -38,7 +38,7 @@ const keywordsDatabase = {
 const categoryLimits = {
     hai_huoc_meme: 80,       
     am_thuc_vlog: 30,        
-    audio_truyen: 40,       
+    audio_truyen: 15,       
     thoi_trang_trai_dep: 20,  
     nhac_giat_giat: 15,       
     generic_xuhuong: 50       
