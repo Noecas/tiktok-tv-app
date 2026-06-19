@@ -10,7 +10,7 @@ const keywordsDatabase = {
     hai_huoc_meme: [
         "review phim", "lốp", "Threads Việt Nam", "TikTok Việt Nam", 
         "fyp", "xuhuong", "biketok", "xh", "hate that i made you love me", 
-        "Capcut Giật Giật", "viral"
+        "Capcut Giật Giật", "viral", "xhtiktok"
     ],
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
