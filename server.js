@@ -8,14 +8,15 @@ const path = require('path');
 // =======================================================================================
 const keywordsDatabase = {
     hai_huoc_meme: [
-        "review phim", "lốp", "Threads Việt Nam", "TikTok Việt Nam", 
+        "review phim", "Threads Việt Nam", "TikTok Việt Nam", 
         "fyp", "xuhuong", "biketok", "xh", "hate that i made you love me", 
         "Capcut Giật Giật", "viral", "xhtiktok"
     ],
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
         "vlog cuoc song hang ngay chill", "goc khuat cuoc song tam trang", 
-        "podcast chữa lành tâm trạng ", "Chuỗi", "phong cảnh Việt Nam"
+        "podcast chữa lành tâm trạng ", "Chuỗi", "phong cảnh Việt Nam",
+        "lốp", "love"
     ],
     audio_truyen: [
         "Audio Việt Nam", "Audio Tổng Tài", "Audio Thiên Kim"
@@ -24,7 +25,7 @@ const keywordsDatabase = {
         "Trai đẹp Việt Nam", "Trai đẹp Trung Quốc", "Trai đẹp Hàn Quốc"
     ],
     nhac_giat_giat: [
-        "trend bien hinh tiktok viet nam", "funk", "phonk", 
+        "trend biến hình tiktok viet nam", "funk", "phonk", 
         "remix giat giat cuon", "vinahouse remix tiktok hot", 
         "mashup hot tiktok hien tai", "dance trend tiktok viet nam", 
         "trend nhảy tiktok hot", "nhạc căng đét tiktok", 
@@ -66,7 +67,7 @@ app.get('/', (req, res) => {
 });
 
 // =======================================================================================
-// 🌍 CƠ CHẾ VISA ĐẶC CÁCH & BỘ LỌC NGÔN NGỮ ĐÃ NÂNG CẤP
+// 🌍 CƠ CHẾ BẢO VỆ LỚP KÉP - QUYẾT CHIẾN CHẶN QUÂN NGOẠI BANG
 // =======================================================================================
 function isGlobalKeyword(kw) {
     if (!kw) return false;
@@ -77,15 +78,28 @@ function isGlobalKeyword(kw) {
     ].some(g => lower.includes(g));
 }
 
-function isVietnameseContent(title, keyword = "") {
-    if (!title) return true; 
+// 🔥 ĐÃ VÁ LỖ HỔNG: Truyền thẳng cả object video vào để check sâu
+function isVietnameseContent(video, keyword = "") {
+    const title = video.title || "";
+    const region = (video.region || "").toUpperCase().trim();
 
-    // 🔥 ĐÒN CHÍ MẠNG: Nếu từ khóa thuộc diện Phonk/Funk/Biketok... -> Bỏ qua bộ lọc, CHO QUA HẾT!
-    if (isGlobalKeyword(keyword)) return true;
-
-    // Chặn các ký tự tượng hình ngoại quốc bừa bãi (Trung, Hàn, Nhật, Thái, Nga...)
+    // 1. THIẾT QUÂN LUẬT: Dính chữ tượng hình ngoại quốc (Trung, Hàn, Nhật, Thái, Nga, Ả Rập...) -> SÚT LUÔN!
+    // Kể cả từ khóa quốc tế như Phonk mà tiêu đề toàn chữ Tàu hay chữ Thái nhìn cũng cực kỳ rác mắt.
     const hasForeignScript = /[\u4e00-\u9fa5]|[\uac00-\ud7af]|[\u3040-\u309f\u30a0-\u30ff]|[\u0e00-\u0e7f]|[\u0400-\u04ff]/.test(title);
     if (hasForeignScript) return false;
+
+    // 2. CHECK REGION CỦA TIKWM: Nếu API báo rõ ràng clip thuộc vùng nước ngoài và KHÔNG PHẢI từ khóa quốc tế -> CẤM CỬA
+    if (region && region !== "VN" && !isGlobalKeyword(keyword)) {
+        return false;
+    }
+
+    // 3. ĐẶC CÁCH QUỐC TẾ: Nếu gõ Phonk/Funk... và đã an toàn vượt qua vòng kiểm duyệt chữ tượng hình ở trên -> CHO QUA!
+    if (isGlobalKeyword(keyword)) return true;
+
+    // 4. VÁ LỖ HỔNG TIÊU ĐỀ TRỐNG: Nếu clip không ghi gì cả (title rỗng) -> Ép buộc vùng quốc gia phải là VN thì mới nhận!
+    if (!title.trim()) {
+        return region === "VN";
+    }
 
     const lowerTitle = title.toLowerCase();
     
@@ -106,7 +120,7 @@ function isVietnameseContent(title, keyword = "") {
     return true; 
 }
 
-// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ TRUYỀN KEYWORD VÀO BỘ LỌC
+// 📡 TIẾN TRÌNH CÀO CUỐN CHIẾU - ĐÃ SỬA ĐOẠN CHECK ĐẦU VÀO
 async function crawlAndSaveToJSON() {
     if (isCrawling) {
         console.log("⏳ [HỆ THỐNG] Tiến trình cào đang chạy ngầm, bỏ qua lượt kích hoạt trùng lặp.");
@@ -151,8 +165,8 @@ async function crawlAndSaveToJSON() {
                         const fetched = response.data.data.videos.map(v => {
                             totalFetchedFromAPI++;
                             
-                            // 🔥 ĐÃ FIX: Truyền thêm keyword gốc vào đây để xét duyệt cấp "Visa đặc cách"
-                            if (!isVietnameseContent(v.title || "", keyword)) {
+                            // 🔥 FIX CHÍ MẠNG: Truyền nguyên object v vào hàm lọc thay vì chỉ truyền v.title
+                            if (!isVietnameseContent(v, keyword)) {
                                 totalBlockedForeign++;
                                 return null; 
                             }
@@ -172,7 +186,6 @@ async function crawlAndSaveToJSON() {
                                 views: v.play_count || 0,
                                 play_count: v.play_count || 0,
                                 
-                                // 🔥 FIX CHÍ MẠNG Ở ĐÂY: Trả thêm các biến Tim của video về để tránh App lấy nhầm số Views
                                 digg_count: v.digg_count || 0,
                                 diggCount: v.digg_count || 0,
                                 likes: v.digg_count || 0,
@@ -309,12 +322,11 @@ app.get('/api/comment/list', async (req, res) => {
             commentsArray = response.data.comments;
         }
 
-        // 🔥 FIX ĐỘC QUYỀN: Ép sắp xếp những bình luận nhiều tim nhất (Hot, Hài hước) lên vị trí đầu tiên
         if (commentsArray.length > 0) {
             commentsArray.sort((a, b) => {
                 const likesA = a.digg_count || a.diggCount || 0;
                 const likesB = b.digg_count || b.diggCount || 0;
-                return likesB - likesA; // Sắp xếp giảm dần (thằng nhiều tim xếp trước)
+                return likesB - likesA;
             });
         }
 
@@ -344,15 +356,14 @@ app.get('/api/video/search', async (req, res) => {
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
             let fetched = response.data.data.videos.map(v => {
                 
-                // 🔥 ĐÃ FIX: Truyền keyword vào đây để nếu gõ "phonk" trên TV app thì vẫn ra bài gốc chuẩn Tây!
-                if (!isVietnameseContent(v.title || "", keyword)) return null; 
+                // 🔥 FIX CHÍ MẠNG: Truyền nguyên object v vào hàm lọc
+                if (!isVietnameseContent(v, keyword)) return null; 
                 
                 return { 
                     videoId: v.video_id, video_id: v.video_id, id: v.video_id,
                     videoUrl: v.play, video_url: v.play, play: v.play,
                     title: v.title, cover: v.cover, views: v.play_count || 0, play_count: v.play_count || 0,
                     
-                    // 🔥 FIX CHÍ MẠNG Ở ĐÂY: Trả thêm các biến Tim cho phần Tìm kiếm
                     digg_count: v.digg_count || 0,
                     diggCount: v.digg_count || 0,
                     likes: v.digg_count || 0,
