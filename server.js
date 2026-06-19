@@ -15,7 +15,7 @@ const keywordsDatabase = {
     am_thuc_vlog: [
         "review do an hot trend", "mukbang do an sieu ngon", 
         "vlog cuoc song hang ngay chill", "goc khuat cuoc song tam trang", 
-        "Chuỗi", "phong cảnh Việt Nam"
+        "podcast chữa lành tâm trạng ", "Chuỗi", "phong cảnh Việt Nam"
     ],
     audio_truyen: [
         "Audio Việt Nam", "Audio Tổng Tài", "Audio Thiên Kim"
@@ -123,7 +123,7 @@ async function crawlAndSaveToJSON() {
     let totalFetchedFromAPI = 0;
     let totalValidVN = 0;
     let totalBlockedForeign = 0;
-    let totalLowLikesSutBayMau = 0; // Đếm số lượng video lẹt đẹt ít tim bị thanh trừng
+    let totalLowLikesSutBayMau = 0; 
 
     try {
         let selectedKeywords = [];
@@ -156,13 +156,11 @@ async function crawlAndSaveToJSON() {
                         const fetched = response.data.data.videos.map(v => {
                             totalFetchedFromAPI++;
                             
-                            // 1. Check quốc gia và ngôn ngữ trước
                             if (!isVietnameseContent(v, keyword)) {
                                 totalBlockedForeign++;
                                 return null; 
                             }
 
-                            // 🔥 2. ĐÒN QUYẾT ĐỊNH: Quét số tim (digg_count). Thằng nào dưới 1500 tim tiễn khách gấp!
                             const currentLikes = v.digg_count || 0;
                             if (currentLikes < MIN_LIKES_THRESHOLD) {
                                 totalLowLikesSutBayMau++;
@@ -251,7 +249,7 @@ function initCacheOnBoot() {
 }
 initCacheOnBoot();
 
-// 📺 API XẢ BÀI ĐỘC QUYỀN - ĐÃ THAY ĐỔI CƠ CHẾ ƯU TIÊN SẮP XẾP SIÊU PHẨM LÊN ĐẦU
+// 📺 API XẢ BÀI ĐỘC QUYỀN - 🔥 ĐÃ NÂNG CẤP THUẬT TOÁN FYP ĐAN RỔ XEN KẼ TỰ NHIÊN
 app.get(['/api/video', '/api/category'], (req, res) => {
     const count = parseInt(req.query.count) || 250; 
     const reqCategory = req.query.category; 
@@ -260,7 +258,53 @@ app.get(['/api/video', '/api/category'], (req, res) => {
 
     let tempPool = [...globalVideosCache];
 
-    if (reqCategory && reqCategory !== "Dành cho bạn" && reqCategory !== "All") {
+    // Loại bỏ các video trùng lặp nếu phía client có gửi danh sách loại trừ
+    const excludeParam = req.query.exclude;
+    if (excludeParam) {
+        const excludedIds = excludeParam.split(',');
+        tempPool = tempPool.filter(v => !excludedIds.includes(v.video_id) && !excludedIds.includes(v.videoId));
+    }
+
+    let servedVideos = [];
+
+    // 🔥 TRƯỜNG HỢP 1: XEM TAB CHÍNH ("DÀNH CHO BẠN" HOẶC KHÔNG TRUYỀN CATEGORY) -> ĐAN RỔ THÔNG MINH
+    if (!reqCategory || reqCategory === "Dành cho bạn" || reqCategory === "All") {
+        
+        // 1. Phân loại video hiện có trong kho RAM vào các ngăn chứa danh mục riêng lẻ
+        const categoriesMap = {};
+        tempPool.forEach(v => {
+            const cat = v.category || "generic_xuhuong";
+            if (!categoriesMap[cat]) categoriesMap[cat] = [];
+            categoriesMap[cat].push(v);
+        });
+
+        // 2. Sắp xếp video trong từng ngăn theo thứ tự TIM giảm dần (Ưu tiên siêu phẩm lên trước)
+        for (const cat in categoriesMap) {
+            categoriesMap[cat].sort((a, b) => {
+                const likesA = a.digg_count || a.likes || 0;
+                const likesB = b.digg_count || b.likes || 0;
+                return likesB - likesA;
+            });
+        }
+
+        // 3. Tiến hành bốc Round-Robin: Lấy luân phiên từng video đầu bảng của mỗi danh mục đan xen vào nhau
+        const catKeys = Object.keys(categoriesMap);
+        let dynamicCheck = true;
+
+        while (dynamicCheck && servedVideos.length < count) {
+            dynamicCheck = false; // Mặc định vòng này tạm coi là cạn bài
+            
+            for (const cat of catKeys) {
+                if (categoriesMap[cat] && categoriesMap[cat].length > 0) {
+                    servedVideos.push(categoriesMap[cat].shift());
+                    dynamicCheck = true; // Xác nhận vẫn bốc được bài để chạy tiếp vòng sau
+                }
+                if (servedVideos.length >= count) break; // Đạt đủ số lượng app TV cần thì dừng bài
+            }
+        }
+    } 
+    // 📺 TRƯỜNG HỢP 2: NGƯỜI DÙNG XEM TAB RIÊNG BIỆT (HÀI HƯỚC, ÂM NHẠC, ẨM THỰC...)
+    else {
         let targetKey = "";
         if (reqCategory === "Hài hước" || reqCategory === "Phim & TV") targetKey = "hai_huoc_meme";
         else if (reqCategory === "Ẩm thực") targetKey = "am_thuc_vlog";
@@ -269,33 +313,17 @@ app.get(['/api/video', '/api/category'], (req, res) => {
         if (targetKey) {
             tempPool = tempPool.filter(v => v.category === targetKey);
         }
+
+        // Xếp hạng tim từ cao xuống thấp của riêng danh mục đó rồi cắt lấy đủ số lượng
+        tempPool.sort((a, b) => (b.digg_count || b.likes || 0) - (a.digg_count || a.likes || 0));
+        servedVideos = tempPool.slice(0, count);
     }
 
-    const excludeParam = req.query.exclude;
-    if (excludeParam) {
-        const excludedIds = excludeParam.split(',');
-        tempPool = tempPool.filter(v => !excludedIds.includes(v.video_id) && !excludedIds.includes(v.videoId));
-    }
-
-    // 🔥 THUẬT TOÁN XẢ HÀNG KHỦNG: Sắp xếp cả kho nhạc theo lượt tim giảm dần (Nhiều tim đứng trước)
-    tempPool.sort((a, b) => {
-        const likesA = a.digg_count || a.likes || 0;
-        const likesB = b.digg_count || b.likes || 0;
-        return likesB - likesA; 
-    });
-
-    // Bốc riêng một nhóm "Thượng đỉnh" (lấy số lượng lớn gấp 3 lần nhu cầu thực tế của App) để chuẩn bị trộn ngẫu nhiên
-    // Việc này giúp tránh việc App hiển thị thứ tự y chang nhau mỗi lần mở, nhưng vẫn giữ bộ lọc toàn hàng khủng
-    let premiumHotPool = tempPool.slice(0, count * 3);
-    premiumHotPool = shuffle(premiumHotPool);
-
-    let servedVideos = premiumHotPool.slice(0, count);
+    // Đánh dấu xóa các bài đã phân phối ra khỏi kho RAM chính để tránh trùng lặp ở lần sau
     const servedIds = servedVideos.map(v => v.video_id);
-    
-    // Gỡ bỏ các clip đã phục vụ ra khỏi kho RAM
     globalVideosCache = globalVideosCache.filter(v => !servedIds.includes(v.video_id));
 
-    console.log(`🎟️ [API XẢ KHO SIÊU CẤP] Đã tiễn biệt ${servedVideos.length} bài toàn hàng đỉnh. RAM còn lại: ${globalVideosCache.length} bài.`);
+    console.log(`🎟️ [THUẬT TOÁN FYP ĐAN RỔ] Đã phân phối ${servedVideos.length} bài trộn xen kẽ tự nhiên. RAM còn lại: ${globalVideosCache.length} bài.`);
 
     if (globalVideosCache.length < 600) crawlAndSaveToJSON();
     return res.json(servedVideos);
@@ -344,8 +372,6 @@ app.get('/api/video/search', async (req, res) => {
         if (response.data && response.data.data && Array.isArray(response.data.data.videos)) {
             let fetched = response.data.data.videos.map(v => {
                 if (!isVietnameseContent(v, keyword)) return null; 
-                
-                // Áp dụng bộ lọc tim tối thiểu cho cả chức năng tìm kiếm động
                 if ((v.digg_count || 0) < MIN_LIKES_THRESHOLD) return null;
 
                 return { 
@@ -360,7 +386,6 @@ app.get('/api/video/search', async (req, res) => {
                 };
             }).filter(v => v !== null);
 
-            // Sắp xếp tìm kiếm theo độ hot ưu tiên lên trước
             fetched.sort((a, b) => b.digg_count - a.digg_count);
             return res.json(fetched);
         }
@@ -377,4 +402,4 @@ setInterval(async () => {
     try { await crawlAndSaveToJSON(); } catch (err) {}
 }, 45 * 60 * 1000);
 
-app.listen(PORT, () => console.log(`🚀 Server Tuyệt Diệt Flop & Độc Quyền Siêu Phẩm Triệu View chạy tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server Tuyệt Diệt Flop & Thuật Toán FYP Đan Rổ Thông Minh chạy tại cổng ${PORT}`));
