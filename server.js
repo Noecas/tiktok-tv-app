@@ -31,7 +31,7 @@ const keywordsDatabase = {
         "gái xinh nhảy edm hot", "vũ điệu cuốn hút tiktok"
     ],
     generic_xuhuong: [
-        "Trend TikTok hiện tại"
+        "Trend TikTok hiện tại", "BMW"
     ]
 };
 
