@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors'); // 🔥 ĐÃ THÊM: Thư viện chống block CORS
 
 // =======================================================================================
 // 🌟 GIỮ NGUYÊN 100% BỘ TỪ KHÓA GỐC CỦA ÔNG GIÁO
@@ -38,13 +39,15 @@ const keywordsDatabase = {
 const categoryLimits = {
     hai_huoc_meme: 80,       
     am_thuc_vlog: 30,        
-    audio_truyen: 15,       
+    audio_truyen: 15,        
     thoi_trang_trai_dep: 20,  
     nhac_giat_giat: 15,       
     generic_xuhuong: 50       
 };
 
 const app = express(); 
+app.use(cors()); // 🔥 ĐÃ THÊM: Mở cửa cho mọi Client (TV, Web, Mobile) gọi API thoải mái
+
 const PORT = process.env.PORT || 3000;
 const FILE_PATH = path.join(__dirname, 'videos.json');
 
@@ -203,11 +206,16 @@ async function crawlAndSaveToJSON() {
                 const uniqueMap = new Map();
                 totalMerged.forEach(v => { if (v.video_id) uniqueMap.set(v.video_id, v); });
                 globalVideosCache = shuffle(Array.from(uniqueMap.values())).slice(-5000);
-                try { 
-                    fs.writeFileSync(FILE_PATH, JSON.stringify(globalVideosCache, null, 2)); 
-                } catch (e) {
-                    console.log(`❌ [LỖI GHI FILE JSON]: ${e.message}`);
-                }
+                
+                // 🔥 ĐÃ FIX: Chuyển sang Ghi file BẤT ĐỒNG BỘ (Async) để server không bị đứng hình
+                const jsonData = JSON.stringify(globalVideosCache, null, 2);
+                fs.writeFile(FILE_PATH, jsonData, (err) => {
+                    if (err) {
+                        console.log(`❌ [LỖI GHI FILE JSON]: ${err.message}`);
+                    } else {
+                        console.log(`💾 [BACKUP] Đã sao lưu ${globalVideosCache.length} video ra disk ngầm.`);
+                    }
+                });
             }
         }
 
