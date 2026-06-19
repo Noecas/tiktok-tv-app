@@ -172,6 +172,12 @@ async function crawlAndSaveToJSON() {
                                 views: v.play_count || 0,
                                 play_count: v.play_count || 0,
                                 
+                                // 🔥 FIX CHÍ MẠNG Ở ĐÂY: Trả thêm các biến Tim của video về để tránh App lấy nhầm số Views
+                                digg_count: v.digg_count || 0,
+                                diggCount: v.digg_count || 0,
+                                likes: v.digg_count || 0,
+                                like_count: v.digg_count || 0,
+                                
                                 comment_count: v.comment_count || 0,
                                 commentCount: v.comment_count || 0,
 
@@ -281,7 +287,7 @@ app.get(['/api/video', '/api/category'], (req, res) => {
     return res.json(servedVideos);
 });
 
-// 💬 API BÌNH LUẬN VẠN NĂNG
+// 💬 API BÌNH LUẬN VẠN NĂNG - ĐÃ FIX SẮP XẾP BÌNH LUẬN HOT NHẤT LÊN ĐẦU
 app.get('/api/comment/list', async (req, res) => {
     let videoId = req.query.video_id || req.query.id || req.query.videoId;
 
@@ -303,7 +309,16 @@ app.get('/api/comment/list', async (req, res) => {
             commentsArray = response.data.comments;
         }
 
-        console.log(`💬 [COMMENTS] Clip ${videoId} -> Hút thành công: ${commentsArray.length} bình luận.`);
+        // 🔥 FIX ĐỘC QUYỀN: Ép sắp xếp những bình luận nhiều tim nhất (Hot, Hài hước) lên vị trí đầu tiên
+        if (commentsArray.length > 0) {
+            commentsArray.sort((a, b) => {
+                const likesA = a.digg_count || a.diggCount || 0;
+                const likesB = b.digg_count || b.diggCount || 0;
+                return likesB - likesA; // Sắp xếp giảm dần (thằng nhiều tim xếp trước)
+            });
+        }
+
+        console.log(`💬 [COMMENTS] Clip ${videoId} -> Hút thành công & Đã sắp xếp Hot: ${commentsArray.length} bình luận.`);
 
         return res.json({
             code: 0,
@@ -317,7 +332,7 @@ app.get('/api/comment/list', async (req, res) => {
     }
 });
 
-// 🔥 API TÌM KIẾM ĐỘNG - ĐÃ FIX: CHẤP NHẬN TÌM KIẾM CẢ ĐỒ NGOẠI NẾU GÕ PHONK/FUNK
+// 🔥 API TÌM KIẾM ĐỘNG - ĐÃ FIX: CHẤP NHẬN TÌM KIẾM CẢ ĐỒ NGOẠI NẾU GÕ PHONK/FUNK VÀ TRẢ THÊM BIẾN TIM
 app.get('/api/video/search', async (req, res) => {
     const keyword = req.query.keyword;
     const count = parseInt(req.query.count) || 250; 
@@ -336,6 +351,13 @@ app.get('/api/video/search', async (req, res) => {
                     videoId: v.video_id, video_id: v.video_id, id: v.video_id,
                     videoUrl: v.play, video_url: v.play, play: v.play,
                     title: v.title, cover: v.cover, views: v.play_count || 0, play_count: v.play_count || 0,
+                    
+                    // 🔥 FIX CHÍ MẠNG Ở ĐÂY: Trả thêm các biến Tim cho phần Tìm kiếm
+                    digg_count: v.digg_count || 0,
+                    diggCount: v.digg_count || 0,
+                    likes: v.digg_count || 0,
+                    like_count: v.digg_count || 0,
+
                     comment_count: v.comment_count || 0, 
                     commentCount: v.comment_count || 0,
                     author: v.author?.unique_id ? "@" + v.author.unique_id : "@tiktok_user", 
