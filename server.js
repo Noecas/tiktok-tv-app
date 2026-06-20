@@ -39,10 +39,10 @@ const keywordsDatabase = {
 const categoryLimits = {
     hai_huoc_meme: 80,       
     am_thuc_vlog: 30,        
-    audio_truyen: 15,        
-    thoi_trang_trai_dep: 20,  
-    nhac_giat_giat: 15,       
-    generic_xuhuong: 50       
+    audio_truyen: 10,        
+    thoi_trang_trai_dep: 30,  
+    nhac_giat_giat: 5,       
+    generic_xuhuong: 80       
 };
 
 const app = express(); 
